@@ -132,12 +132,6 @@ curl -X POST "http://localhost:8000/obfuscate" \
   -F "terms=John Doe,123-45-6789" \
   -F "engine=pymupdf"
 
-# Upload and obfuscation (PyMuPDF)
-curl -X POST "http://localhost:8000/obfuscate" \
-  -F "file=@document.pdf" \
-  -F "terms=John Doe,123-45-6789" \
-  -F "engine=pymupdf"
-
 # Obfuscation via JSON (local file)
 curl -X POST "http://localhost:8000/obfuscate-json" \
   -H "Content-Type: application/json" \
