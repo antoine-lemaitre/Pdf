@@ -5,65 +5,65 @@ from src.domain.exceptions import FileStorageError
 
 
 class LocalStorageAdapter(FileStoragePort):
-    """Adapter pour le stockage de fichiers local."""
+    """Adapter for local file storage."""
     
     def __init__(self, base_path: str = "."):
         """
-        Initialise l'adapter de stockage local.
+        Initialize the local storage adapter.
         
         Args:
-            base_path: Répertoire de base pour les opérations de fichiers
+            base_path: Base directory for file operations
         """
         self.base_path = Path(base_path).resolve()
     
     def read_file(self, file_path: str) -> bytes:
         """
-        Lit un fichier depuis le système de fichiers local.
+        Read a file from the local file system.
         
         Args:
-            file_path: Chemin vers le fichier
+            file_path: Path to the file
             
         Returns:
-            bytes: Contenu du fichier
+            bytes: File content
             
         Raises:
-            FileStorageError: En cas d'erreur de lecture
+            FileStorageError: In case of read error
         """
         try:
-            file_path = self._resolve_path(file_path)
+            resolved_path = self._resolve_path(file_path)
             
-            if not file_path.exists():
-                raise FileStorageError(f"Le fichier {file_path} n'existe pas")
+            if not resolved_path.exists():
+                raise FileStorageError(f"File {resolved_path} does not exist")
             
-            if not file_path.is_file():
-                raise FileStorageError(f"{file_path} n'est pas un fichier")
+            if not resolved_path.is_file():
+                raise FileStorageError(f"{resolved_path} is not a file")
             
-            with open(file_path, 'rb') as f:
+            with open(resolved_path, 'rb') as f:
                 return f.read()
                 
         except FileStorageError:
             raise
         except Exception as e:
-            raise FileStorageError(f"Erreur lors de la lecture du fichier {file_path}: {str(e)}")
+            raise FileStorageError(f"Error reading file {file_path}: {str(e)}")
     
     def write_file(self, file_path: str, content: bytes) -> None:
         """
-        Écrit un fichier dans le système de fichiers local.
+        Write a file to the local file system.
         
         Args:
-            file_path: Chemin de destination
-            content: Contenu à écrire
+            file_path: Destination path
+            content: Content to write
             
         Raises:
-            FileStorageError: En cas d'erreur d'écriture
+            FileStorageError: In case of write error
         """
         try:
-            file_path = self._resolve_path(file_path)
+            resolved_path = self._resolve_path(file_path)
             
-            # Créer les répertoires parents si nécessaire
-            file_path.parent.mkdir(parents=True, exist_ok=True)
+            # Create parent directories if necessary
+            resolved_path.parent.mkdir(parents=True, exist_ok=True)
             
-            with open(file_path, 'wb') as f:
+            with open(resolved_path, 'wb') as f:
                 f.write(content)
                 
         except Exception as e:
@@ -71,48 +71,48 @@ class LocalStorageAdapter(FileStoragePort):
     
     def file_exists(self, file_path: str) -> bool:
         """
-        Vérifie si un fichier existe.
+        Check if a file exists.
         
         Args:
-            file_path: Chemin vers le fichier
+            file_path: Path to the file
             
         Returns:
-            bool: True si le fichier existe
+            bool: True if the file exists
         """
         try:
-            file_path = self._resolve_path(file_path)
-            return file_path.exists() and file_path.is_file()
+            resolved_path = self._resolve_path(file_path)
+            return resolved_path.exists() and resolved_path.is_file()
         except Exception:
             return False
     
     def delete_file(self, file_path: str) -> None:
         """
-        Supprime un fichier.
+        Delete a file.
         
         Args:
-            file_path: Chemin vers le fichier à supprimer
+            file_path: Path to the file to delete
             
         Raises:
-            FileStorageError: En cas d'erreur de suppression
+            FileStorageError: In case of deletion error
         """
         try:
-            file_path = self._resolve_path(file_path)
+            resolved_path = self._resolve_path(file_path)
             
-            if file_path.exists():
-                file_path.unlink()
+            if resolved_path.exists():
+                resolved_path.unlink()
                 
         except Exception as e:
-            raise FileStorageError(f"Erreur lors de la suppression du fichier {file_path}: {str(e)}")
+            raise FileStorageError(f"Error deleting file {file_path}: {str(e)}")
     
     def _resolve_path(self, file_path: str) -> Path:
         """
-        Résout un chemin relatif par rapport au répertoire de base.
+        Resolve a relative path with respect to the base directory.
         
         Args:
-            file_path: Chemin du fichier
+            file_path: File path
             
         Returns:
-            Path: Chemin résolu
+            Path: Resolved path
         """
         path = Path(file_path)
         

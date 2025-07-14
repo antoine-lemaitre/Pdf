@@ -12,3 +12,6 @@ wheels/
 # Data files (test PDFs and results)
 data/
 !data/README.md
+
+# testing script
+test_obfuscation.sh

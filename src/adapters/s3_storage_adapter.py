@@ -10,7 +10,7 @@ from src.domain.exceptions import FileStorageError
 
 
 class S3StorageAdapter(FileStoragePort):
-    """Adapter pour le stockage de fichiers sur Amazon S3."""
+    """Adapter for Amazon S3 file storage."""
     
     def __init__(
         self,
@@ -20,20 +20,20 @@ class S3StorageAdapter(FileStoragePort):
         region_name: str = "us-east-1"
     ):
         """
-        Initialise l'adapter S3.
+        Initialize the S3 adapter.
         
         Args:
-            bucket_name: Nom du bucket S3
-            aws_access_key_id: Clé d'accès AWS (optionnel si configuré via env/IAM)
-            aws_secret_access_key: Clé secrète AWS (optionnel si configuré via env/IAM)
-            region_name: Région AWS
+            bucket_name: S3 bucket name
+            aws_access_key_id: AWS access key (optional if configured via env/IAM)
+            aws_secret_access_key: AWS secret key (optional if configured via env/IAM)
+            region_name: AWS region
         """
         if boto3 is None:
             raise ImportError("boto3 is required for S3 storage. Install with: pip install boto3")
         
         self.bucket_name = bucket_name
         
-        # Initialiser le client S3
+        # Initialize S3 client
         session_kwargs = {"region_name": region_name}
         if aws_access_key_id and aws_secret_access_key:
             session_kwargs.update({
@@ -45,7 +45,7 @@ class S3StorageAdapter(FileStoragePort):
             session = boto3.Session(**session_kwargs)
             self.s3_client = session.client('s3')
             
-            # Vérifier que le bucket existe
+            # Check that the bucket exists
             self.s3_client.head_bucket(Bucket=bucket_name)
             
         except NoCredentialsError:
@@ -59,16 +59,16 @@ class S3StorageAdapter(FileStoragePort):
     
     def read_file(self, file_path: str) -> bytes:
         """
-        Lit un fichier depuis S3.
+        Read a file from S3.
         
         Args:
-            file_path: Clé S3 du fichier
+            file_path: S3 key of the file
             
         Returns:
-            bytes: Contenu du fichier
+            bytes: File content
             
         Raises:
-            FileStorageError: En cas d'erreur de lecture
+            FileStorageError: In case of read error
         """
         try:
             response = self.s3_client.get_object(Bucket=self.bucket_name, Key=file_path)
@@ -85,14 +85,14 @@ class S3StorageAdapter(FileStoragePort):
     
     def write_file(self, file_path: str, content: bytes) -> None:
         """
-        Écrit un fichier vers S3.
+        Write a file to S3.
         
         Args:
-            file_path: Clé S3 de destination
-            content: Contenu à écrire
+            file_path: S3 destination key
+            content: Content to write
             
         Raises:
-            FileStorageError: En cas d'erreur d'écriture
+            FileStorageError: In case of write error
         """
         try:
             self.s3_client.put_object(
@@ -108,13 +108,13 @@ class S3StorageAdapter(FileStoragePort):
     
     def file_exists(self, file_path: str) -> bool:
         """
-        Vérifie si un fichier existe dans S3.
+        Check if a file exists in S3.
         
         Args:
-            file_path: Clé S3 du fichier
+            file_path: S3 key of the file
             
         Returns:
-            bool: True si le fichier existe
+            bool: True if the file exists
         """
         try:
             self.s3_client.head_object(Bucket=self.bucket_name, Key=file_path)
@@ -126,13 +126,13 @@ class S3StorageAdapter(FileStoragePort):
     
     def delete_file(self, file_path: str) -> None:
         """
-        Supprime un fichier de S3.
+        Delete a file from S3.
         
         Args:
-            file_path: Clé S3 du fichier à supprimer
+            file_path: S3 key of the file to delete
             
         Raises:
-            FileStorageError: En cas d'erreur de suppression
+            FileStorageError: In case of deletion error
         """
         try:
             self.s3_client.delete_object(Bucket=self.bucket_name, Key=file_path)
