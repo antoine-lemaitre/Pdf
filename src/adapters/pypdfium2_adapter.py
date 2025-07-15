@@ -1,71 +1,82 @@
 """
-This adapter uses pypdfium2 for text extraction and PIL+ReportLab for high-quality masking.
-Based on StackOverflow solution for preserving PDF quality with PIL.
+This adapter uses pypdfium2 for text extraction and PIL+ReportLab for obfuscation.
+Robust implementation using raster approach for maximum compatibility.
 """
-import os
-from typing import List, Optional
-import tempfile
 import io
-import logging
+import tempfile
+import os
+import pypdfium2 as pdfium
+from PIL import Image, ImageDraw
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
 
-try:
-    import pypdfium2 as pdfium
-except ImportError:
-    raise ImportError("pypdfium2 is required. Install with: pip install pypdfium2")
+from ..domain.entities import Document, Term, TermOccurrence, Position
+from ..domain.exceptions import DocumentProcessingError
+from ..ports.pdf_processor_port import PdfProcessorPort
+from ..ports.file_storage_port import FileStoragePort
+from typing import List
 
-try:
-    from PIL import Image, ImageDraw
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.utils import ImageReader
-except ImportError:
-    raise ImportError("PIL and reportlab are required. Install with: pip install Pillow reportlab")
-
-from src.ports.pdf_processor_port import PdfProcessorPort
-from src.ports.file_storage_port import FileStoragePort
-from src.domain.entities import Document, Term, TermOccurrence, ObfuscationResult, TermResult, ProcessingStatus, Position
-from src.domain.exceptions import DocumentProcessingError
 
 class PyPdfium2Adapter(PdfProcessorPort):
-    """PDF processor using pypdfium2 for text extraction and PIL+ReportLab for high-quality masking."""
+    """
+    PyPDFium2 adapter for PDF processing with PIL+ReportLab obfuscation.
+    """
     
     def __init__(self, file_storage: FileStoragePort):
         self._file_storage = file_storage
-    
+
     def extract_text_occurrences(self, document: Document, term: Term) -> List[TermOccurrence]:
+        """
+        Extract text occurrences using PyPDFium2 with improved bounding boxes from text rects.
+        """
         try:
             pdf_content = self._file_storage.read_file(document.path)
             pdf = pdfium.PdfDocument(pdf_content)
             occurrences = []
+            
             for page_index in range(len(pdf)):
                 page = pdf[page_index]
                 text_page = page.get_textpage()
-                searcher = text_page.search(term.text, match_case=False)
+                text_page.count_rects()  # Indispensable pour get_rect/get_index
+                
+                # Search for the term
+                searcher = text_page.search(term.text, match_case=False, match_whole_word=False)
+                
+                # Get unique occurrences
+                seen = set()
+                unique_results = []
+                result_index = 0
                 while True:
                     result = searcher.get_next()
                     if result is None:
                         break
                     start_index, count = result
                     
-                    # Get coordinates of first character
-                    left, bottom, right, top = text_page.get_charbox(start_index)
-                    
-                    # If multiple characters, get coordinates of last character too
+                    # Get charbox for the full match (word)
+                    char_left, char_bottom, char_right, char_top = text_page.get_charbox(start_index, loose=True)
                     if count > 1:
-                        end_index = start_index + count - 1
-                        end_left, end_bottom, end_right, end_top = text_page.get_charbox(end_index)
-                        # Use the full width from first to last character
-                        right = end_right
-                        # Use the maximum height to cover all characters
-                        top = max(top, end_top)
-                        bottom = min(bottom, end_bottom)
+                        end_left, end_bottom, end_right, end_top = text_page.get_charbox(start_index + count - 1, loose=True)
+                        char_left = min(char_left, end_left)
+                        char_right = max(char_right, end_right)
+                        char_top = max(char_top, end_top)
+                        char_bottom = min(char_bottom, end_bottom)
+
+                    # Use only charbox coordinates - simple and direct approach
+                    # For each word, use the bounding box of all its characters
+                    left = min(char_left, char_right)
+                    right = max(char_left, char_right)
+                    top = max(char_top, char_bottom)
+                    bottom = min(char_top, char_bottom)
                     
-                    # Add some padding to better cover the text
-                    padding = 1.0  # 1 point padding
-                    left = max(0, left - padding)
-                    right = right + padding
-                    bottom = max(0, bottom - padding)
-                    top = top + padding
-                    
+                    coord_tuple = (left, bottom, right, top)
+                    if coord_tuple not in seen:
+                        seen.add(coord_tuple)
+                        unique_results.append((start_index, count, left, bottom, right, top))
+                    result_index += 1
+                searcher.close()
+                
+                # Create occurrences
+                for start_index, count, left, bottom, right, top in unique_results:
                     occurrence = TermOccurrence(
                         term=term,
                         position=Position(
@@ -77,7 +88,7 @@ class PyPdfium2Adapter(PdfProcessorPort):
                         page_number=page_index + 1
                     )
                     occurrences.append(occurrence)
-                searcher.close()
+                
                 text_page.close()
             pdf.close()
             return occurrences
@@ -86,8 +97,8 @@ class PyPdfium2Adapter(PdfProcessorPort):
 
     def obfuscate_occurrences(self, document: Document, occurrences: List[TermOccurrence]) -> bytes:
         """
-        Obfuscate using PIL+ReportLab approach for high-quality masking.
-        Renders each page as high-resolution image, draws black rectangles, then converts to PDF.
+        Obfuscate using pypdfium2 rendering and PIL+ReportLab image processing.
+        Robust raster-based approach for maximum compatibility.
         """
         try:
             pdf_content = self._file_storage.read_file(document.path)
@@ -109,45 +120,34 @@ class PyPdfium2Adapter(PdfProcessorPort):
                 page_width = page.get_width()
                 page_height = page.get_height()
                 
-                # Render page as high-resolution image (2x for better quality)
+                # Render page as high-resolution image
                 scale = 2.0
-                pil_image = page.render(scale=scale, optimize_mode="print").to_pil()
+                bitmap = page.render(scale=scale, optimize_mode="print")
+                pil_image = bitmap.to_pil()
                 
-                # Draw black rectangles on the image
+                # Calculate scale factors
+                img_w, img_h = pil_image.size
+                scale_x = img_w / page_width
+                scale_y = img_h / page_height
+                
+                # Draw black rectangles for obfuscation
                 draw = ImageDraw.Draw(pil_image)
                 
                 for occ in occ_by_page.get(page_index, []):
                     # Convert PDF coordinates to image coordinates
-                    # PDF origin: bottom-left, PIL: top-left
-                    img_w, img_h = pil_image.size
-                    scale_x = img_w / page_width
-                    scale_y = img_h / page_height
-                    
                     x0 = occ.position.x0 * scale_x
+                    y0 = img_h - (occ.position.y1 * scale_y)  # Invert Y axis
                     x1 = occ.position.x1 * scale_x
-                    # Invert Y coordinates and adjust positioning
-                    y0 = img_h - (occ.position.y1 * scale_y)
-                    y1 = img_h - (occ.position.y0 * scale_y)
+                    y1 = img_h - (occ.position.y0 * scale_y)  # Invert Y axis
                     
-                    # Add vertical offset to move rectangles down (they are too high)
-                    vertical_offset = 8 * scale_y  # 8 points down (was 5)
-                    y0 = min(img_h, y0 + vertical_offset)
-                    y1 = min(img_h, y1 + vertical_offset)
-                    
-                    # Add padding to better cover the text
-                    padding = 2 * scale_y  # 2 points of padding, scaled
-                    y0 = max(0, y0 - padding)  # Move up
-                    y1 = min(img_h, y1 + padding)  # Move down
-                    
-                    # Ensure minimum height for visibility
-                    min_height = 3 * scale_y
-                    if y1 - y0 < min_height:
-                        y1 = y0 + min_height
+                    # Ensure coordinates are in correct order
+                    x0, x1 = min(x0, x1), max(x0, x1)
+                    y0, y1 = min(y0, y1), max(y0, y1)
                     
                     # Draw black rectangle
                     draw.rectangle([x0, y0, x1, y1], fill=(0, 0, 0))
                 
-                # Convert PIL image to PDF using ReportLab (high quality)
+                # Convert PIL image to PDF using ReportLab
                 img_buffer = io.BytesIO()
                 pil_image.save(img_buffer, format='PNG', optimize=False)
                 img_buffer.seek(0)
@@ -176,13 +176,13 @@ class PyPdfium2Adapter(PdfProcessorPort):
             return {
                 "name": "pypdfium2+PIL+ReportLab",
                 "version": version,
-                "license": "Apache 2.0 + PIL + BSD",
-                "description": "pypdfium2 for text extraction + PIL+ReportLab for high-quality masking"
+                "license": "Apache 2.0",
+                "description": "pypdfium2 with PIL+ReportLab for robust raster-based obfuscation"
             }
         except ImportError:
             return {
                 "name": "pypdfium2+PIL+ReportLab",
                 "version": "not installed",
-                "license": "Apache 2.0 + PIL + BSD",
-                "description": "pypdfium2 for text extraction + PIL+ReportLab for high-quality masking"
+                "license": "Apache 2.0",
+                "description": "pypdfium2 with PIL+ReportLab for robust raster-based obfuscation"
             } 

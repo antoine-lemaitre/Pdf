@@ -15,3 +15,4 @@ data/
 
 # testing script
 test_obfuscation.sh
+.DS_Store
