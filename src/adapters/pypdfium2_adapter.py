@@ -116,9 +116,21 @@ class PyPdfium2Adapter(PdfProcessorPort):
             for page_index in range(len(pdf)):
                 page = pdf[page_index]
                 
-                # Get page dimensions
+                # Get page dimensions and bbox information
                 page_width = page.get_width()
                 page_height = page.get_height()
+                
+                # Get bbox information from pypdfium2
+                try:
+                    bbox_x0, bbox_y0, bbox_x1, bbox_y1 = page.get_mediabox()
+                    print(f"DEBUG: pypdfium2 mediabox: ({bbox_x0}, {bbox_y0}, {bbox_x1}, {bbox_y1})")
+                except:
+                    # Fallback to page dimensions
+                    bbox_x0, bbox_y0, bbox_x1, bbox_y1 = 0, 0, page_width, page_height
+                    print(f"DEBUG: pypdfium2 fallback bbox: ({bbox_x0}, {bbox_y0}, {bbox_x1}, {bbox_y1})")
+                
+                print(f"DEBUG: pypdfium2 page dimensions: {page_width}x{page_height}")
+                print(f"DEBUG: pypdfium2 bbox: ({bbox_x0}, {bbox_y0}, {bbox_x1}, {bbox_y1})")
                 
                 # Render page as high-resolution image
                 scale = 2.0
@@ -134,15 +146,27 @@ class PyPdfium2Adapter(PdfProcessorPort):
                 draw = ImageDraw.Draw(pil_image)
                 
                 for occ in occ_by_page.get(page_index, []):
+                    print(f"DEBUG: pypdfium2 term '{occ.term.text}' - coords: x0={occ.position.x0}, y0={occ.position.y0}, x1={occ.position.x1}, y1={occ.position.y1}")
+                    
+                    # Apply bbox offset adjustment (same logic as pdfplumber)
+                    x0_adjusted = occ.position.x0 - bbox_x0
+                    y0_adjusted = occ.position.y0 - bbox_y0
+                    x1_adjusted = occ.position.x1 - bbox_x0
+                    y1_adjusted = occ.position.y1 - bbox_y0
+                    
+                    print(f"DEBUG: pypdfium2 adjusted coords: x0={x0_adjusted}, y0={y0_adjusted}, x1={x1_adjusted}, y1={y1_adjusted}")
+                    
                     # Convert PDF coordinates to image coordinates
-                    x0 = occ.position.x0 * scale_x
-                    y0 = img_h - (occ.position.y1 * scale_y)  # Invert Y axis
-                    x1 = occ.position.x1 * scale_x
-                    y1 = img_h - (occ.position.y0 * scale_y)  # Invert Y axis
+                    x0 = x0_adjusted * scale_x
+                    y0 = img_h - (y1_adjusted * scale_y)  # Invert Y axis
+                    x1 = x1_adjusted * scale_x
+                    y1 = img_h - (y0_adjusted * scale_y)  # Invert Y axis
                     
                     # Ensure coordinates are in correct order
                     x0, x1 = min(x0, x1), max(x0, x1)
                     y0, y1 = min(y0, y1), max(y0, y1)
+                    
+                    print(f"DEBUG: pypdfium2 image coords: x0={x0}, y0={y0}, x1={x1}, y1={y1}")
                     
                     # Draw black rectangle
                     draw.rectangle([x0, y0, x1, y1], fill=(0, 0, 0))
