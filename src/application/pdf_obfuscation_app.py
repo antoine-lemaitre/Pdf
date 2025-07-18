@@ -12,6 +12,7 @@ from src.ports.pdf_processor_port import PdfProcessorPort
 from src.ports.file_storage_port import FileStoragePort
 from src.adapters.pymupdf_adapter import PyMuPdfAdapter
 from src.adapters.pypdfium2_adapter import PyPdfium2Adapter
+from src.adapters.pdfplumber_adapter import PdfPlumberAdapter
 from src.adapters.local_storage_adapter import LocalStorageAdapter
 
 
@@ -52,7 +53,7 @@ class PdfObfuscationApplication:
         Create a PDF processor based on the specified engine.
         
         Args:
-            engine: Engine name (pymupdf, pypdfium2)
+            engine: Engine name (pymupdf, pypdfium2, pdfplumber)
             
         Returns:
             PdfProcessorPort: Configured processor
@@ -64,8 +65,10 @@ class PdfObfuscationApplication:
             return PyMuPdfAdapter(self._file_storage)
         elif engine == "pypdfium2":
             return PyPdfium2Adapter(self._file_storage)
+        elif engine == "pdfplumber":
+            return PdfPlumberAdapter(self._file_storage)
         else:
-            raise ObfuscationError(f"Engine {engine} not supported. Available engines: pymupdf, pypdfium2")
+            raise ObfuscationError(f"Engine {engine} not supported. Available engines: pymupdf, pypdfium2, pdfplumber")
     
     def obfuscate_document(
         self,
@@ -94,8 +97,8 @@ class PdfObfuscationApplication:
             if not terms:
                 raise ObfuscationError("At least one term must be specified")
             
-            if engine not in ["pymupdf", "pypdfium2"]:
-                raise ObfuscationError(f"Engine {engine} not supported. Available engines: pymupdf, pypdfium2")
+            if engine not in ["pymupdf", "pypdfium2", "pdfplumber"]:
+                raise ObfuscationError(f"Engine {engine} not supported. Available engines: pymupdf, pypdfium2, pdfplumber")
             
             # Check that source file exists
             if not self._file_storage.file_exists(source_path):
@@ -157,7 +160,7 @@ class PdfObfuscationApplication:
         Returns:
             List[str]: List of supported engines
         """
-        return ["pymupdf", "pypdfium2"]
+        return ["pymupdf", "pypdfium2", "pdfplumber"]
     
     def validate_document(self, document_path: str) -> bool:
         """

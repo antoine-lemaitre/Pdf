@@ -27,12 +27,13 @@ class TestFastAPI:
         data = response.json()
         assert "available_engines" in data
         engines = data["available_engines"]
-        assert len(engines) == 2  # Now we have two engines: pymupdf and pypdfium2
+        assert len(engines) == 3  # We have three engines: pymupdf, pypdfium2, and pdfplumber
         
-        # Check both engines are present
+        # Check all engines are present
         engine_names = [e["name"] for e in engines]
         assert "pymupdf" in engine_names
         assert "pypdfium2" in engine_names
+        assert "pdfplumber" in engine_names
     
     def test_obfuscate_endpoint_missing_file(self, temp_output_path):
         """Test obfuscation endpoint with missing source file."""

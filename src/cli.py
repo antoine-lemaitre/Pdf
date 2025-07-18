@@ -44,7 +44,7 @@ Examples:
     parser.add_argument(
         "--engine", "-e",
         default="pymupdf",
-        choices=["pymupdf", "pypdfium2"],
+        choices=["pymupdf", "pypdfium2", "pdfplumber"],
         help="Obfuscation engine to use (default: pymupdf)"
     )
     

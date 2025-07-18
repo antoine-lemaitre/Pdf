@@ -35,7 +35,7 @@ def main():
     cli_parser.add_argument("document", help="Path to the PDF document")
     cli_parser.add_argument("--terms", nargs="+", required=True, help="Terms to obfuscate")
     cli_parser.add_argument("--output", help="Output file (optional)")
-    cli_parser.add_argument("--engine", default="pymupdf", choices=["pymupdf", "pypdfium2"], help="Obfuscation engine")
+    cli_parser.add_argument("--engine", default="pymupdf", choices=["pymupdf", "pypdfium2", "pdfplumber", "borb"], help="Obfuscation engine")
     cli_parser.add_argument("--format", choices=["json", "text"], default="text", help="Output format")
     cli_parser.add_argument("--engines", action="store_true", help="List available engines")
     cli_parser.add_argument("--validate", action="store_true", help="Validate document only")
