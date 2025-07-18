@@ -61,12 +61,26 @@ class PdfPlumberAdapter(PdfProcessorPort):
                         for word in words:
                             if term_text in word['text'].lower():
                                 # Found a word containing our term
-                                position = Position(
-                                    x0=word['x0'],
-                                    y0=word['top'],
-                                    x1=word['x1'],
-                                    y1=word['bottom']
-                                )
+                                # Calculate precise coordinates for the substring using proportional positioning
+                                word_text = word['text']
+                                term_pos = word_text.lower().find(term_text)
+                                
+                                if term_pos != -1:
+                                    # Calculate proportional width of the term within the word
+                                    word_width = word['x1'] - word['x0']
+                                    term_width = len(term_text) / len(word_text) * word_width
+                                    
+                                    # Calculate the starting position of the term
+                                    term_start_ratio = term_pos / len(word_text)
+                                    term_x0 = word['x0'] + (term_start_ratio * word_width)
+                                    term_x1 = term_x0 + term_width
+                                    
+                                    x0, y0, x1, y1 = term_x0, word['top'], term_x1, word['bottom']
+                                else:
+                                    # Fallback to word bounds if term not found
+                                    x0, y0, x1, y1 = word['x0'], word['top'], word['x1'], word['bottom']
+                                
+                                position = Position(x0=x0, y0=y0, x1=x1, y1=y1)
                                 
                                 occurrence = TermOccurrence(
                                     term=term,
@@ -75,7 +89,9 @@ class PdfPlumberAdapter(PdfProcessorPort):
                                 )
                                 occurrences.append(occurrence)
                     else:
-                        # Multi-word search - use consecutive word matching
+                        # Multi-word search - handle both single-line and multi-line terms
+                        # First try consecutive words on same line
+                        consecutive_found = False
                         for i in range(len(words) - len(term_words) + 1):
                             # Check if the next words match our term
                             match = True
@@ -86,6 +102,7 @@ class PdfPlumberAdapter(PdfProcessorPort):
                             
                             if match:
                                 # Found consecutive words that match our term
+                                consecutive_found = True
                                 
                                 # Calculate bounding box from all matching words
                                 matching_words = words[i:i + len(term_words)]
@@ -102,11 +119,117 @@ class PdfPlumberAdapter(PdfProcessorPort):
                                     page_number=page_num + 1
                                 )
                                 occurrences.append(occurrence)
+                        
+                        # If consecutive words not found, try multi-line search with column awareness
+                        if not consecutive_found:
+                            # Group words by columns to avoid mixing content from different columns
+                            columns = self._group_words_by_columns(words)
+                            
+                            # Search within each column separately
+                            for column_words in columns:
+                                if len(column_words) >= len(term_words):
+                                    # Try to find the term within this column
+                                    column_occurrences = self._find_term_in_column(column_words, term_words, term_text, page_num + 1)
+                                    occurrences.extend(column_occurrences)
             
             return occurrences
             
         except Exception as e:
             raise DocumentProcessingError(f"Error during text extraction with pdfplumber: {str(e)}")
+    
+    def _group_words_by_columns(self, words: List[dict]) -> List[List[dict]]:
+        """
+        Group words by columns based on their x-coordinates to avoid mixing content from different columns.
+        
+        Args:
+            words: List of word dictionaries from pdfplumber
+            
+        Returns:
+            List of word lists, each representing a column
+        """
+        if not words:
+            return []
+        
+        # Sort words by x-coordinate to identify column boundaries
+        sorted_words = sorted(words, key=lambda w: w['x0'])
+        
+        # Find column boundaries by looking for large gaps in x-coordinates
+        columns = []
+        current_column = [sorted_words[0]]
+        
+        for i in range(1, len(sorted_words)):
+            current_word = sorted_words[i]
+            prev_word = sorted_words[i-1]
+            
+            # If there's a large gap in x-coordinate, it's likely a new column
+            gap = current_word['x0'] - prev_word['x1']
+            if gap > 50:  # Threshold for column separation (adjust as needed)
+                if current_column:
+                    columns.append(current_column)
+                current_column = [current_word]
+            else:
+                current_column.append(current_word)
+        
+        if current_column:
+            columns.append(current_column)
+        
+        # Sort words within each column by position (top to bottom, left to right)
+        for column in columns:
+            column.sort(key=lambda w: (w['top'], w['x0']))
+        
+        return columns
+    
+    def _find_term_in_column(self, column_words: List[dict], term_words: List[str], term_text: str, page_number: int) -> List[TermOccurrence]:
+        """
+        Find a multi-line term within a single column of words.
+        
+        Args:
+            column_words: Words in a single column
+            term_words: Individual words of the term to search for
+            term_text: Full term text
+            page_number: Page number
+            
+        Returns:
+            List of TermOccurrence objects
+        """
+        occurrences = []
+        
+        # Find all words that match any part of our term
+        matching_word_indices = []
+        for i, word in enumerate(column_words):
+            word_text = word['text'].lower()
+            for term_word in term_words:
+                if term_word.lower() in word_text or word_text in term_word.lower():
+                    matching_word_indices.append(i)
+        
+        # Try to find sequences of matching words that form our term
+        if len(matching_word_indices) >= len(term_words):
+            # Get matching words in order
+            matching_words = [column_words[i] for i in matching_word_indices]
+            
+            # Try to find consecutive sequences that match our term
+            for i in range(len(matching_words) - len(term_words) + 1):
+                sequence = matching_words[i:i + len(term_words)]
+                
+                # Check if this sequence matches our term
+                sequence_text = ' '.join(w['text'].lower() for w in sequence)
+                if term_text in sequence_text or sequence_text in term_text:
+                    # Calculate bounding box from all words in sequence
+                    x0 = min(word['x0'] for word in sequence)
+                    y0 = min(word['top'] for word in sequence)
+                    x1 = max(word['x1'] for word in sequence)
+                    y1 = max(word['bottom'] for word in sequence)
+                    
+                    position = Position(x0=x0, y0=y0, x1=x1, y1=y1)
+                    
+                    occurrence = TermOccurrence(
+                        term=Term(term_text),  # Create a new Term object
+                        position=position,
+                        page_number=page_number
+                    )
+                    occurrences.append(occurrence)
+        
+        return occurrences
     
 
     
