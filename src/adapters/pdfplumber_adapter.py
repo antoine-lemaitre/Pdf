@@ -10,13 +10,9 @@ from typing import List
 try:
     import pdfplumber
     from PIL import Image, ImageDraw, ImageFilter
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.utils import ImageReader
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.colors import black
     from pdf2image import convert_from_bytes
 except ImportError:
-    raise ImportError("pdfplumber, pdf2image, Pillow, and reportlab are required. Install with: pip install pdfplumber pdf2image Pillow reportlab")
+    raise ImportError("pdfplumber, pdf2image, and Pillow are required. Install with: pip install pdfplumber pdf2image Pillow")
 
 from src.ports.pdf_processor_port import PdfProcessorPort
 from src.domain.entities import Document, Term, TermOccurrence, Position
@@ -156,7 +152,7 @@ class PdfPlumberAdapter(PdfProcessorPort):
                 
                 processed_images.append(processed_image)
             
-            # Convert back to PDF using ReportLab
+            # Convert back to PDF using Pillow
             return self._images_to_pdf(processed_images)
             
         except Exception as e:
@@ -250,7 +246,7 @@ class PdfPlumberAdapter(PdfProcessorPort):
     
     def _images_to_pdf(self, images: List[Image.Image]) -> bytes:
         """
-        Convert list of PIL images back to PDF using ReportLab.
+        Convert list of PIL images back to PDF using Pillow.
         
         Args:
             images: List of PIL Images
@@ -258,32 +254,19 @@ class PdfPlumberAdapter(PdfProcessorPort):
         Returns:
             bytes: PDF content
         """
-        output_buffer = io.BytesIO()
-        c = canvas.Canvas(output_buffer)
-        
-        for i, image in enumerate(images):
-            # Get image dimensions
-            img_width, img_height = image.size
-            
-            # Convert to PDF page size (A4)
-            page_width = 595
-            page_height = 842
-            
-            # Save image to buffer
-            img_buffer = io.BytesIO()
-            image.save(img_buffer, format='PNG')
-            img_buffer.seek(0)
-            
-            # Add to PDF
-            c.setPageSize((page_width, page_height))
-            c.drawImage(ImageReader(img_buffer), 0, 0, page_width, page_height)
-            
-            # Add page break if not the last page
-            if i < len(images) - 1:
-                c.showPage()
-        
-        c.save()
-        return output_buffer.getvalue()
+        # Convert images to PDF using Pillow
+        if len(images) == 1:
+            # Single page
+            output_buffer = io.BytesIO()
+            images[0].save(output_buffer, format='PDF')
+            output_buffer.seek(0)
+            return output_buffer.getvalue()
+        else:
+            # Multiple pages - save first image as PDF, then append others
+            output_buffer = io.BytesIO()
+            images[0].save(output_buffer, format='PDF', save_all=True, append_images=images[1:])
+            output_buffer.seek(0)
+            return output_buffer.getvalue()
     
     def get_engine_info(self) -> dict:
         """
@@ -297,12 +280,12 @@ class PdfPlumberAdapter(PdfProcessorPort):
             from PIL import Image
             
             return {
-                "name": "pdfplumber+ReportLab",
+                "name": "pdfplumber+Pillow",
                 "version": {
                     "pdfplumber": getattr(pdfplumber, "__version__", "unknown"),
                     "pillow": Image.__version__
                 },
-                "description": "PdfPlumber with ReportLab for precise text extraction and direct PDF obfuscation",
+                "description": "PdfPlumber with Pillow for precise text extraction and raster-based obfuscation",
                 "features": [
                     "Precise text extraction with positioning",
                     "Direct PDF manipulation",
@@ -317,9 +300,9 @@ class PdfPlumberAdapter(PdfProcessorPort):
             }
         except ImportError as e:
             return {
-                "name": "pdfplumber+ReportLab",
+                "name": "pdfplumber+Pillow",
                 "version": "not installed",
-                "description": "PdfPlumber with ReportLab - Not available",
+                "description": "PdfPlumber with Pillow - Not available",
                 "error": str(e),
                 "features": [],
                 "supported_formats": []
