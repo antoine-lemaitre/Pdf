@@ -160,8 +160,7 @@ class PyPdfium2Adapter(PdfProcessorPort):
                     # Add bbox offset to rectangle height for better coverage
                     bbox_offset = abs(bbox_y0)  # Value absolute of bbox offset
                     height_adjustment = bbox_offset * scale_y
-                    y0 -= height_adjustment / 2  # Extend up
-                    y1 += height_adjustment / 2  # Extend down
+                    y0 -= height_adjustment  # Extend only above
                     
                     # Draw black rectangle
                     draw.rectangle([x0, y0, x1, y1], fill=(0, 0, 0))

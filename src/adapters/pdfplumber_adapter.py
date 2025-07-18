@@ -52,36 +52,56 @@ class PdfPlumberAdapter(PdfProcessorPort):
                     # Extract words with positioning information
                     words = page.extract_words()
                     
-                    # Split term into individual words
+                    # Handle both single terms and multi-word terms
+                    term_text = term.text.lower()
                     term_words = term.text.split()
                     
-                    # Search for consecutive words that match our term
-                    for i in range(len(words) - len(term_words) + 1):
-                        # Check if the next words match our term
-                        match = True
-                        for j, term_word in enumerate(term_words):
-                            if i + j >= len(words) or words[i + j]['text'].lower() != term_word.lower():
-                                match = False
-                                break
-                        
-                        if match:
-                            # Found consecutive words that match our term
+                    if len(term_words) == 1:
+                        # Single word/part of word search - use substring matching
+                        for word in words:
+                            if term_text in word['text'].lower():
+                                # Found a word containing our term
+                                position = Position(
+                                    x0=word['x0'],
+                                    y0=word['top'],
+                                    x1=word['x1'],
+                                    y1=word['bottom']
+                                )
+                                
+                                occurrence = TermOccurrence(
+                                    term=term,
+                                    position=position,
+                                    page_number=page_num + 1
+                                )
+                                occurrences.append(occurrence)
+                    else:
+                        # Multi-word search - use consecutive word matching
+                        for i in range(len(words) - len(term_words) + 1):
+                            # Check if the next words match our term
+                            match = True
+                            for j, term_word in enumerate(term_words):
+                                if i + j >= len(words) or words[i + j]['text'].lower() != term_word.lower():
+                                    match = False
+                                    break
                             
-                            # Calculate bounding box from all matching words
-                            matching_words = words[i:i + len(term_words)]
-                            x0 = min(word['x0'] for word in matching_words)
-                            y0 = min(word['top'] for word in matching_words)
-                            x1 = max(word['x1'] for word in matching_words)
-                            y1 = max(word['bottom'] for word in matching_words)
-                            
-                            position = Position(x0=x0, y0=y0, x1=x1, y1=y1)
-                            
-                            occurrence = TermOccurrence(
-                                term=term,
-                                position=position,
-                                page_number=page_num + 1
-                            )
-                            occurrences.append(occurrence)
+                            if match:
+                                # Found consecutive words that match our term
+                                
+                                # Calculate bounding box from all matching words
+                                matching_words = words[i:i + len(term_words)]
+                                x0 = min(word['x0'] for word in matching_words)
+                                y0 = min(word['top'] for word in matching_words)
+                                x1 = max(word['x1'] for word in matching_words)
+                                y1 = max(word['bottom'] for word in matching_words)
+                                
+                                position = Position(x0=x0, y0=y0, x1=x1, y1=y1)
+                                
+                                occurrence = TermOccurrence(
+                                    term=term,
+                                    position=position,
+                                    page_number=page_num + 1
+                                )
+                                occurrences.append(occurrence)
             
             return occurrences
             
@@ -223,10 +243,8 @@ class PdfPlumberAdapter(PdfProcessorPort):
             bbox_offset_height = abs(bbox_y0)  # Absolute value of bbox offset
             bbox_offset_pixels = int(bbox_offset_height * scale_y)
             
-            # Extend rectangle height by half the bbox offset above and below
-            extension = bbox_offset_pixels // 2
-            y0_img = max(0, y0_img - extension)
-            y1_img = min(img_height, y1_img + extension)
+            # Extend rectangle height only above (not below)
+            y0_img = max(0, y0_img - bbox_offset_pixels)
             
             # Apply obfuscation
             draw.rectangle([x0, y0_img, x1, y1_img], fill=(0, 0, 0))
