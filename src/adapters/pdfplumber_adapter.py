@@ -234,10 +234,21 @@ class PdfPlumberAdapter(PdfProcessorPort):
             x0, x1 = min(x0, x1), max(x0, x1)
             y0_img, y1_img = min(y0_img, y1_img), max(y0_img, y1_img)
             
+            # Add bbox offset height to rectangle for better coverage
+            bbox_offset_height = abs(bbox_y0)  # Absolute value of bbox offset
+            bbox_offset_pixels = int(bbox_offset_height * scale_y)
+            
+            # Extend rectangle height by half the bbox offset above and below
+            extension = bbox_offset_pixels // 2
+            y0_img = max(0, y0_img - extension)
+            y1_img = min(img_height, y1_img + extension)
+            
             print(f"DEBUG: Converted coords: x0={x0}, y0={y0_img}, x1={x1}, y1={y1_img}")
             print(f"DEBUG: Rectangle size: {x1-x0}x{y1_img-y0_img}")
             print(f"DEBUG: Bbox adjustment: x0-{bbox_x0}={occurrence.position.x0}-{bbox_x0}={occurrence.position.x0-bbox_x0}")
             print(f"DEBUG: Bbox adjustment: y1-{bbox_y1}={bbox_y1}-{occurrence.position.y1}={bbox_y1-occurrence.position.y1}")
+            print(f"DEBUG: Bbox offset height: {bbox_offset_height} points = {bbox_offset_pixels} pixels")
+            print(f"DEBUG: Extended rectangle by {extension} pixels above and below")
             
             # Apply obfuscation
             draw.rectangle([x0, y0_img, x1, y1_img], fill=(0, 0, 0))

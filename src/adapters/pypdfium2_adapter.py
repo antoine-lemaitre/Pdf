@@ -166,7 +166,14 @@ class PyPdfium2Adapter(PdfProcessorPort):
                     x0, x1 = min(x0, x1), max(x0, x1)
                     y0, y1 = min(y0, y1), max(y0, y1)
                     
+                    # Add bbox offset to rectangle height for better coverage
+                    bbox_offset = abs(bbox_y0)  # Value absolute of bbox offset
+                    height_adjustment = bbox_offset * scale_y
+                    y0 -= height_adjustment / 2  # Extend up
+                    y1 += height_adjustment / 2  # Extend down
+                    
                     print(f"DEBUG: pypdfium2 image coords: x0={x0}, y0={y0}, x1={x1}, y1={y1}")
+                    print(f"DEBUG: pypdfium2 bbox offset: {bbox_offset}, height adjustment: {height_adjustment}")
                     
                     # Draw black rectangle
                     draw.rectangle([x0, y0, x1, y1], fill=(0, 0, 0))
