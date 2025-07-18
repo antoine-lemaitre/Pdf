@@ -52,12 +52,8 @@ class PdfPlumberAdapter(PdfProcessorPort):
                     # Extract words with positioning information
                     words = page.extract_words()
                     
-                    print(f"DEBUG: Page {page_num + 1} words extracted by pdfplumber:")
-                    print(f"DEBUG: Found {len(words)} words")
-                    
                     # Split term into individual words
                     term_words = term.text.split()
-                    print(f"DEBUG: Looking for term words: {term_words}")
                     
                     # Search for consecutive words that match our term
                     for i in range(len(words) - len(term_words) + 1):
@@ -70,7 +66,6 @@ class PdfPlumberAdapter(PdfProcessorPort):
                         
                         if match:
                             # Found consecutive words that match our term
-                            print(f"DEBUG: Found term at word index {i}")
                             
                             # Calculate bounding box from all matching words
                             matching_words = words[i:i + len(term_words)]
@@ -176,8 +171,6 @@ class PdfPlumberAdapter(PdfProcessorPort):
         
         img_width, img_height = image.size
         
-        print(f"DEBUG: Image size: {img_width}x{img_height}")
-        
         for occurrence in occurrences:
             # Get page dimensions from pdfplumber
             if page_info:
@@ -192,14 +185,6 @@ class PdfPlumberAdapter(PdfProcessorPort):
             
             # Extract bbox coordinates
             bbox_x0, bbox_y0, bbox_x1, bbox_y1 = page_bbox
-            
-            print(f"DEBUG: Page dimensions: {page_width_pt}x{page_height_pt}")
-            print(f"DEBUG: Page bbox: {page_bbox}")
-            print(f"DEBUG: Bbox coordinates: x0={bbox_x0}, y0={bbox_y0}, x1={bbox_x1}, y1={bbox_y1}")
-            print(f"DEBUG: Term '{occurrence.term.text}' - pdfplumber coords: x0={occurrence.position.x0}, y0={occurrence.position.y0}, x1={occurrence.position.x1}, y1={occurrence.position.y1}")
-            print(f"DEBUG: Term size: {occurrence.position.x1 - occurrence.position.x0} x {occurrence.position.y1 - occurrence.position.y0} points")
-            print(f"DEBUG: Term found: '{occurrence.term.text}'")
-            print(f"DEBUG: Term searched: '{occurrence.term.text}'")
             
             # Calculate scale factors based on actual dimensions
             # Page PDF: 595.5 x 842.25 points
@@ -242,13 +227,6 @@ class PdfPlumberAdapter(PdfProcessorPort):
             extension = bbox_offset_pixels // 2
             y0_img = max(0, y0_img - extension)
             y1_img = min(img_height, y1_img + extension)
-            
-            print(f"DEBUG: Converted coords: x0={x0}, y0={y0_img}, x1={x1}, y1={y1_img}")
-            print(f"DEBUG: Rectangle size: {x1-x0}x{y1_img-y0_img}")
-            print(f"DEBUG: Bbox adjustment: x0-{bbox_x0}={occurrence.position.x0}-{bbox_x0}={occurrence.position.x0-bbox_x0}")
-            print(f"DEBUG: Bbox adjustment: y1-{bbox_y1}={bbox_y1}-{occurrence.position.y1}={bbox_y1-occurrence.position.y1}")
-            print(f"DEBUG: Bbox offset height: {bbox_offset_height} points = {bbox_offset_pixels} pixels")
-            print(f"DEBUG: Extended rectangle by {extension} pixels above and below")
             
             # Apply obfuscation
             draw.rectangle([x0, y0_img, x1, y1_img], fill=(0, 0, 0))

@@ -123,14 +123,9 @@ class PyPdfium2Adapter(PdfProcessorPort):
                 # Get bbox information from pypdfium2
                 try:
                     bbox_x0, bbox_y0, bbox_x1, bbox_y1 = page.get_mediabox()
-                    print(f"DEBUG: pypdfium2 mediabox: ({bbox_x0}, {bbox_y0}, {bbox_x1}, {bbox_y1})")
                 except:
                     # Fallback to page dimensions
                     bbox_x0, bbox_y0, bbox_x1, bbox_y1 = 0, 0, page_width, page_height
-                    print(f"DEBUG: pypdfium2 fallback bbox: ({bbox_x0}, {bbox_y0}, {bbox_x1}, {bbox_y1})")
-                
-                print(f"DEBUG: pypdfium2 page dimensions: {page_width}x{page_height}")
-                print(f"DEBUG: pypdfium2 bbox: ({bbox_x0}, {bbox_y0}, {bbox_x1}, {bbox_y1})")
                 
                 # Render page as high-resolution image
                 scale = 2.0
@@ -146,15 +141,11 @@ class PyPdfium2Adapter(PdfProcessorPort):
                 draw = ImageDraw.Draw(pil_image)
                 
                 for occ in occ_by_page.get(page_index, []):
-                    print(f"DEBUG: pypdfium2 term '{occ.term.text}' - coords: x0={occ.position.x0}, y0={occ.position.y0}, x1={occ.position.x1}, y1={occ.position.y1}")
-                    
                     # Apply bbox offset adjustment (same logic as pdfplumber)
                     x0_adjusted = occ.position.x0 - bbox_x0
                     y0_adjusted = occ.position.y0 - bbox_y0
                     x1_adjusted = occ.position.x1 - bbox_x0
                     y1_adjusted = occ.position.y1 - bbox_y0
-                    
-                    print(f"DEBUG: pypdfium2 adjusted coords: x0={x0_adjusted}, y0={y0_adjusted}, x1={x1_adjusted}, y1={y1_adjusted}")
                     
                     # Convert PDF coordinates to image coordinates
                     x0 = x0_adjusted * scale_x
@@ -171,9 +162,6 @@ class PyPdfium2Adapter(PdfProcessorPort):
                     height_adjustment = bbox_offset * scale_y
                     y0 -= height_adjustment / 2  # Extend up
                     y1 += height_adjustment / 2  # Extend down
-                    
-                    print(f"DEBUG: pypdfium2 image coords: x0={x0}, y0={y0}, x1={x1}, y1={y1}")
-                    print(f"DEBUG: pypdfium2 bbox offset: {bbox_offset}, height adjustment: {height_adjustment}")
                     
                     # Draw black rectangle
                     draw.rectangle([x0, y0, x1, y1], fill=(0, 0, 0))
