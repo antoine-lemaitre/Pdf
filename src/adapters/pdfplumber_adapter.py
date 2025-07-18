@@ -68,7 +68,7 @@ class PdfPlumberAdapter(PdfProcessorPort):
                         # Check if the next words match our term
                         match = True
                         for j, term_word in enumerate(term_words):
-                            if i + j >= len(words) or words[i + j]['text'] != term_word:
+                            if i + j >= len(words) or words[i + j]['text'].lower() != term_word.lower():
                                 match = False
                                 break
                         
@@ -96,6 +96,8 @@ class PdfPlumberAdapter(PdfProcessorPort):
             
         except Exception as e:
             raise DocumentProcessingError(f"Error during text extraction with pdfplumber: {str(e)}")
+    
+
     
     def obfuscate_occurrences(self, document: Document, occurrences: List[TermOccurrence]) -> bytes:
         """
