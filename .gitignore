@@ -16,3 +16,4 @@ data/
 # testing script
 test_obfuscation.sh
 .DS_Store
+src/adapters/Pdf.code-workspace
