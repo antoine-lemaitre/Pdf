@@ -62,32 +62,32 @@ The service can be used in CLI or API server mode.
 
 ```bash
 # Obfuscate terms in a PDF (PyMuPDF by default)
-python main.py document.pdf --terms "John Doe" "123-45-6789"
+uv run main.py document.pdf --terms "John Doe" "123-45-6789"
 
 # Obfuscate terms in a PDF (PyMuPDF by default)
-python main.py document.pdf --terms "John Doe" "123-45-6789"
+uv run main.py document.pdf --terms "John Doe" "123-45-6789"
 
 # Specify an output file
-python main.py input.pdf --terms "confidential" --output output.pdf
+uv run main.py input.pdf --terms "confidential" --output output.pdf
 
 # Validate a document
-python main.py --validate document.pdf
+uv run main.py --validate document.pdf
 
 # Show available engines
-python main.py --engines
+uv run main.py --engines
 
 # Verbose mode with JSON output
-python main.py document.pdf --terms "secret" --verbose --format json
+uv run main.py document.pdf --terms "secret" --verbose --format json
 ```
 
 ### API Server Mode
 
 ```bash
 # Start the server
-python main.py server
+uv run main.py server
 
 # With custom configuration
-python main.py server --host 0.0.0.0 --port 8080 --reload
+uv run main.py server --host 0.0.0.0 --port 8080 --reload
 ```
 
 ### REST API
