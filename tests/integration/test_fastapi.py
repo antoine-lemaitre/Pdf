@@ -109,11 +109,12 @@ class TestFastAPI:
         }
         
         response = client.post("/obfuscate", json=request_data)
-        assert response.status_code == 500  # Internal server error (validation error handled as 500)
+        assert response.status_code == 200  # API returns 200 with error in JSON
         
         data = response.json()
-        assert "invalid_engine" in data["detail"]
-        assert "Available engines" in data["detail"]
+        assert data["success"] is False
+        assert "invalid_engine" in data["error"]
+        assert "Available engines" in data["error"]
 
 
 @pytest.mark.asyncio

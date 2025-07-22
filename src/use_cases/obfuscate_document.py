@@ -59,7 +59,7 @@ class ObfuscateDocumentUseCase:
                     output_path = destination_path
                 else:
                     # Default to data/output/ if no destination specified
-                    if document_path.startswith('/Users/antoine.lemaitre/Documents/Pdf/data/input/'):
+                    if 'data/input/' in document_path:
                         output_path = document_path.replace('data/input/', 'data/output/').replace('.pdf', '_obfuscated.pdf')
                     else:
                         output_path = document_path.replace('.pdf', '_obfuscated.pdf')
