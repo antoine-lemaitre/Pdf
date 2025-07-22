@@ -35,7 +35,6 @@ class QualityReport:
     terms_to_obfuscate: List[str]
     engine_used: str
     metrics: QualityMetrics
-    recommendations: List[str]
     timestamp: str
 
 

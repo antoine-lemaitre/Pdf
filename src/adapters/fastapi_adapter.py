@@ -56,7 +56,6 @@ class QualityEvaluationResponse(BaseModel):
     terms_to_obfuscate: List[str]
     engine_used: str
     metrics: QualityMetricsResponse
-    recommendations: List[str]
     timestamp: str
 
 
@@ -178,7 +177,6 @@ async def evaluate_quality(request: QualityEvaluationRequest):
             non_obfuscated_terms=quality_report.metrics.non_obfuscated_terms,
             false_positive_terms=quality_report.metrics.false_positive_terms
         ),
-        recommendations=quality_report.recommendations,
         timestamp=quality_report.timestamp
     )
 

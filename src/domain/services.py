@@ -191,25 +191,6 @@ class QualityEvaluationService:
         
         return round(overall_score, 3)
     
-    def generate_recommendations(
-        self, 
-        completeness_score: float, 
-        precision_score: float, 
-        visual_integrity_score: float
-    ) -> List[str]:
-        """
-        Generate recommendations based on quality scores.
-        
-        Args:
-            completeness_score: Score for completeness
-            precision_score: Score for precision
-            visual_integrity_score: Score for visual integrity
-            
-        Returns:
-            List of recommendations
-        """
-        return []
-    
     def create_quality_report(
         self,
         original_document_path: str,
@@ -238,7 +219,6 @@ class QualityEvaluationService:
             Complete quality report
         """
         overall_score = self.calculate_overall_score(completeness_score, precision_score, visual_integrity_score)
-        recommendations = self.generate_recommendations(completeness_score, precision_score, visual_integrity_score)
         
         # Extract detailed term information from completeness and precision details
         non_obfuscated_terms = []
@@ -268,6 +248,5 @@ class QualityEvaluationService:
             terms_to_obfuscate=terms_to_obfuscate,
             engine_used=engine_used,
             metrics=metrics,
-            recommendations=recommendations,
             timestamp=datetime.now().isoformat()
         ) 

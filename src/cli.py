@@ -151,7 +151,6 @@ Examples:
                     "completeness_score": result.metrics.completeness_score,
                     "precision_score": result.metrics.precision_score,
                     "visual_integrity_score": result.metrics.visual_integrity_score,
-                    "recommendations": result.recommendations,
                     "timestamp": result.timestamp
                 }, indent=2))
             else:
@@ -159,10 +158,6 @@ Examples:
                 print(f"Completeness: {result.metrics.completeness_score}")
                 print(f"Precision: {result.metrics.precision_score}")
                 print(f"Visual Integrity: {result.metrics.visual_integrity_score}")
-                if result.recommendations:
-                    print("Recommendations:")
-                    for rec in result.recommendations:
-                        print(f"  - {rec}")
             
             return 0
         
