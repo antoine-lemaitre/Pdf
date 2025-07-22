@@ -126,7 +126,7 @@ uv run python main.py document.pdf --terms "secret" --verbose --format json
 uv run python main.py server
 
 # With custom configuration
-uv run python main.py server --host 0.0.0.0 --port 8080 --reload
+uv run python main.py server --host 0.0.0.0 --port 8000
 ```
 
 ### REST API
