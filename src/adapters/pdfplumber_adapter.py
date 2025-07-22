@@ -377,6 +377,7 @@ class PdfPlumberAdapter(PdfProcessorPort):
     def _images_to_pdf(self, images: List[Image.Image]) -> bytes:
         """
         Convert list of PIL images back to PDF using Pillow.
+        Preserves original page dimensions.
         
         Args:
             images: List of PIL Images
@@ -384,17 +385,34 @@ class PdfPlumberAdapter(PdfProcessorPort):
         Returns:
             bytes: PDF content
         """
-        # Convert images to PDF using Pillow
+        # Convert images to PDF using Pillow with original dimensions
         if len(images) == 1:
-            # Single page
+            # Single page - preserve original dimensions
             output_buffer = io.BytesIO()
-            images[0].save(output_buffer, format='PDF')
+            # Convert to RGB if needed (PDF requires RGB)
+            if images[0].mode != 'RGB':
+                images[0] = images[0].convert('RGB')
+            images[0].save(output_buffer, format='PDF', resolution=200.0)
             output_buffer.seek(0)
             return output_buffer.getvalue()
         else:
-            # Multiple pages - save first image as PDF, then append others
+            # Multiple pages - preserve original dimensions
             output_buffer = io.BytesIO()
-            images[0].save(output_buffer, format='PDF', save_all=True, append_images=images[1:])
+            # Convert all images to RGB if needed
+            rgb_images = []
+            for img in images:
+                if img.mode != 'RGB':
+                    rgb_images.append(img.convert('RGB'))
+                else:
+                    rgb_images.append(img)
+            
+            rgb_images[0].save(
+                output_buffer, 
+                format='PDF', 
+                save_all=True, 
+                append_images=rgb_images[1:],
+                resolution=200.0
+            )
             output_buffer.seek(0)
             return output_buffer.getvalue()
     
