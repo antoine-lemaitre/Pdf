@@ -45,6 +45,15 @@ src/
 
 - Python 3.12+
 - uv (package manager)
+- **System dependencies:**
+  - **Tesseract OCR** (for quality evaluation):
+    - macOS: `brew install tesseract`
+    - Ubuntu/Debian: `sudo apt install tesseract-ocr`
+    - Windows: Download from [GitHub releases](https://github.com/UB-Mannheim/tesseract/wiki)
+  - **Poppler** (for PDF processing):
+    - macOS: `brew install poppler`
+    - Ubuntu/Debian: `sudo apt install poppler-utils`
+    - Windows: Download from [poppler releases](https://github.com/oschwartz10612/poppler-windows/releases/)
 
 ### Installing dependencies
 
@@ -58,6 +67,25 @@ uv sync
 # Install development dependencies
 uv sync --extra dev
 ```
+
+### Key Dependencies
+
+The project uses several important libraries:
+
+- **PDF Processing Engines:**
+  - `pymupdf` - Fast PDF manipulation with rectangle overlays
+  - `pypdfium2` - High-quality PDF processing with Apache 2.0 license
+  - `pdfplumber` - Precise text extraction with Pillow obfuscation
+
+- **Quality Evaluation:**
+  - `pdf2image` - PDF to image conversion
+  - `pytesseract` - OCR for text extraction (requires Tesseract system dependency)
+  - `Pillow` - Image processing for obfuscation
+
+- **API & CLI:**
+  - `fastapi` - REST API framework
+  - `uvicorn` - ASGI server
+  - `pydantic` - Data validation
 
 ## 📋 Usage
 
