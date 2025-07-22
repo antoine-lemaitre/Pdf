@@ -28,6 +28,36 @@ class ObfuscationRequest(BaseModel):
     terms: List[TermRequest]
     destination_path: Optional[str] = None
     engine: str = "pymupdf"
+    evaluate_quality: bool = False
+
+
+class QualityMetricsResponse(BaseModel):
+    """Quality metrics response."""
+    completeness_score: float
+    precision_score: float
+    visual_integrity_score: float
+    overall_score: float
+    non_obfuscated_terms: List[str] = []
+    false_positive_terms: List[str] = []
+
+
+class QualityEvaluationRequest(BaseModel):
+    """Quality evaluation request."""
+    original_document_path: str
+    obfuscated_document_path: str
+    terms: List[TermRequest]
+    engine_used: str = "unknown"
+
+
+class QualityEvaluationResponse(BaseModel):
+    """Quality evaluation response."""
+    original_document_path: str
+    obfuscated_document_path: str
+    terms_to_obfuscate: List[str]
+    engine_used: str
+    metrics: QualityMetricsResponse
+    recommendations: List[str]
+    timestamp: str
 
 
 class TermResultResponse(BaseModel):
@@ -52,7 +82,7 @@ class ObfuscationResponse(BaseModel):
 # FastAPI application configuration
 app = FastAPI(
     title="PDF Obfuscation Service",
-    description="PDF document obfuscation service",
+    description="PDF document obfuscation service with quality evaluation",
     version="1.0.0"
 )
 
@@ -79,7 +109,7 @@ async def get_engines():
 @app.post("/obfuscate", response_model=ObfuscationResponse)
 async def obfuscate_document(request: ObfuscationRequest):
     """
-    Obfuscate a PDF document via JSON request (like the original API).
+    Obfuscate a PDF document via JSON request.
     
     Args:
         request: Obfuscation request
@@ -96,18 +126,61 @@ async def obfuscate_document(request: ObfuscationRequest):
         source_path=request.source_path,
         terms=terms,
         destination_path=request.destination_path,
-        engine=request.engine
+        engine=request.engine,
+        evaluate_quality=request.evaluate_quality
     )
-    # If error, return 500 with detail
-    if not result.success:
-        raise HTTPException(status_code=500, detail=result.error or "Obfuscation failed")
-    # Compose response with output_path
-    response = _convert_result_to_response(result)
-    response_dict = response.model_dump()
-    response_dict["output_path"] = response_dict.get("output_document")
-    if "output_path" not in response_dict:
-        response_dict["output_path"] = None
-    return response_dict
+    
+    return _convert_result_to_response(result)
+
+
+@app.post("/evaluate-quality", response_model=QualityEvaluationResponse)
+async def evaluate_quality(request: QualityEvaluationRequest):
+    """
+    Evaluate the quality of obfuscation.
+    
+    Args:
+        request: Quality evaluation request
+    """
+    # Validate files exist
+    if not os.path.exists(request.original_document_path):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Original document {request.original_document_path} not found"
+        )
+    
+    if not os.path.exists(request.obfuscated_document_path):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Obfuscated document {request.obfuscated_document_path} not found"
+        )
+    
+    # Convert terms to list of strings
+    terms = [term.text for term in request.terms]
+    
+    # Execute quality evaluation
+    quality_report = pdf_app.evaluate_quality(
+        original_document_path=request.original_document_path,
+        obfuscated_document_path=request.obfuscated_document_path,
+        terms_to_obfuscate=terms,
+        engine_used=request.engine_used
+    )
+    
+    return QualityEvaluationResponse(
+        original_document_path=quality_report.original_document_path,
+        obfuscated_document_path=quality_report.obfuscated_document_path,
+        terms_to_obfuscate=quality_report.terms_to_obfuscate,
+        engine_used=quality_report.engine_used,
+        metrics=QualityMetricsResponse(
+            completeness_score=quality_report.metrics.completeness_score,
+            precision_score=quality_report.metrics.precision_score,
+            visual_integrity_score=quality_report.metrics.visual_integrity_score,
+            overall_score=quality_report.metrics.overall_score,
+            non_obfuscated_terms=quality_report.metrics.non_obfuscated_terms,
+            false_positive_terms=quality_report.metrics.false_positive_terms
+        ),
+        recommendations=quality_report.recommendations,
+        timestamp=quality_report.timestamp
+    )
 
 
 @app.post("/obfuscate-upload")

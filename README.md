@@ -14,11 +14,16 @@ src/
 │   └── exceptions.py    # Business exceptions
 ├── ports/               # Interfaces - Contracts between domain and adapters
 │   ├── pdf_processor_port.py    # Interface for PDF processing
-│   └── file_storage_port.py     # Interface for file storage
+│   ├── file_storage_port.py     # Interface for file storage
+│   └── quality_evaluator_port.py # Interface for quality evaluation
 ├── use_cases/           # Orchestration - Business use cases
-│   └── obfuscate_document.py
+│   ├── obfuscate_document.py
+│   └── evaluate_obfuscation_quality.py
 ├── adapters/            # Implementations - Technical details
 │   ├── pymupdf_adapter.py       # PyMuPDF implementation
+│   ├── pypdfium2_adapter.py     # PyPDFium2 implementation
+│   ├── pdfplumber_adapter.py    # pdfplumber implementation
+│   ├── independent_quality_evaluator.py # Quality evaluation (no bias)
 │   ├── local_storage_adapter.py # Local storage
 │   ├── s3_storage_adapter.py    # S3 storage
 │   └── fastapi_adapter.py       # REST web interface
@@ -62,32 +67,38 @@ The service can be used in CLI or API server mode.
 
 ```bash
 # Obfuscate terms in a PDF (PyMuPDF by default)
-uv run main.py document.pdf --terms "John Doe" "123-45-6789"
+uv run python main.py document.pdf --terms "John Doe" "123-45-6789"
 
 # Obfuscate terms in a PDF (PyMuPDF by default)
-uv run main.py document.pdf --terms "John Doe" "123-45-6789"
+uv run python main.py document.pdf --terms "John Doe" "123-45-6789"
 
 # Specify an output file
-uv run main.py input.pdf --terms "confidential" --output output.pdf
+uv run python main.py input.pdf --terms "confidential" --output output.pdf
+
+# Obfuscate with quality evaluation
+uv run python main.py document.pdf --terms "John Doe" --evaluate-quality
+
+# Evaluate quality of existing obfuscation
+uv run python main.py evaluate-quality original.pdf obfuscated.pdf --terms "John Doe"
 
 # Validate a document
-uv run main.py --validate document.pdf
+uv run python main.py --validate document.pdf
 
 # Show available engines
-uv run main.py --engines
+uv run python main.py --engines
 
 # Verbose mode with JSON output
-uv run main.py document.pdf --terms "secret" --verbose --format json
+uv run python main.py document.pdf --terms "secret" --verbose --format json
 ```
 
 ### API Server Mode
 
 ```bash
 # Start the server
-uv run main.py server
+uv run python main.py server
 
 # With custom configuration
-uv run main.py server --host 0.0.0.0 --port 8080 --reload
+uv run python main.py server --host 0.0.0.0 --port 8080 --reload
 ```
 
 ### REST API
@@ -113,7 +124,11 @@ POST /obfuscate
 
 # Obfuscation via JSON
 POST /obfuscate-json
-# JSON: {"source_path": "...", "terms": [...], "engine": "pymupdf"}
+# JSON: {"source_path": "...", "terms": [...], "engine": "pymupdf", "evaluate_quality": true}
+
+# Quality evaluation
+POST /evaluate-quality
+# JSON: {"original_document_path": "...", "obfuscated_document_path": "...", "terms": [...], "engine_used": "pymupdf"}
 
 # Document validation
 POST /validate
@@ -132,14 +147,25 @@ curl -X POST "http://localhost:8000/obfuscate" \
   -F "terms=John Doe,123-45-6789" \
   -F "engine=pymupdf"
 
-# Obfuscation via JSON (local file)
+# Obfuscation via JSON (local file) with quality evaluation
 curl -X POST "http://localhost:8000/obfuscate-json" \
   -H "Content-Type: application/json" \
   -d '{
     "source_path": "/path/to/document.pdf",
     "terms": ["confidential", "secret"],
     "destination_path": "/path/to/output.pdf",
-    "engine": "pymupdf"
+    "engine": "pymupdf",
+    "evaluate_quality": true
+  }'
+
+# Quality evaluation
+curl -X POST "http://localhost:8000/evaluate-quality" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "original_document_path": "/path/to/original.pdf",
+    "obfuscated_document_path": "/path/to/obfuscated.pdf",
+    "terms": [{"text": "John Doe"}, {"text": "123-45-6789"}],
+    "engine_used": "pymupdf"
   }'
 
 # Validation
@@ -153,6 +179,33 @@ curl -X POST "http://localhost:8000/validate" \
 
 Currently supported:
 - **PyMuPDF**: Main engine, uses gray rectangles to mask text (AGPL license)
+- **PyPDFium2**: Alternative engine with different obfuscation method
+- **pdfplumber**: Text-based obfuscation engine
+
+### Quality Evaluation
+
+The quality evaluation system provides three main metrics:
+
+#### 1. Completeness Score
+Measures whether all target terms were properly obfuscated.
+- **Method**: Compares text extraction from original vs obfuscated documents using PyPDF2 (no bias)
+- **Score**: 0.0 to 1.0 (higher is better)
+
+#### 2. Precision Score
+Measures whether only target terms were obfuscated (no false positives).
+- **Method**: Checks if non-target text was accidentally obfuscated
+- **Score**: 0.0 to 1.0 (higher is better)
+
+#### 3. Visual Integrity Score
+Measures whether the visual appearance and layout are preserved.
+- **Method**: Compares page dimensions and structure using pdf2image
+- **Score**: 0.0 to 1.0 (higher is better)
+
+#### Overall Score
+Weighted combination of the three metrics:
+- Completeness: 40%
+- Precision: 35%
+- Visual Integrity: 25%
 
 ### Storage
 
@@ -243,3 +296,11 @@ class NewStorageAdapter(FileStoragePort):
         # Specific implementation
         pass
 ```
+
+### Adding quality evaluation
+
+The quality evaluation system is designed to avoid bias by using different libraries than the obfuscation engines:
+
+- **IndependentQualityEvaluator**: Uses PyPDF2 and pdf2image instead of pymupdf/pdfplumber
+- **QualityEvaluationService**: Contains business rules for quality assessment
+- **EvaluateObfuscationQualityUseCase**: Orchestrates the evaluation process

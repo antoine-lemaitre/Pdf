@@ -4,16 +4,19 @@ Coordinates domain services, use cases, and infrastructure adapters.
 """
 from typing import List, Optional
 
-from src.domain.entities import ObfuscationRequest, ObfuscationResult, Document, Term
-from src.domain.services import DocumentObfuscationService
+from src.domain.entities import ObfuscationRequest, ObfuscationResult, Document, Term, QualityReport
+from src.domain.services import DocumentObfuscationService, QualityEvaluationService
 from src.domain.exceptions import ObfuscationError, DocumentProcessingError, FileStorageError
 from src.use_cases.obfuscate_document import ObfuscateDocumentUseCase
+from src.use_cases.evaluate_obfuscation_quality import EvaluateObfuscationQualityUseCase
 from src.ports.pdf_processor_port import PdfProcessorPort
 from src.ports.file_storage_port import FileStoragePort
+from src.ports.quality_evaluator_port import QualityEvaluatorPort
 from src.adapters.pymupdf_adapter import PyMuPdfAdapter
 from src.adapters.pypdfium2_adapter import PyPdfium2Adapter
 from src.adapters.pdfplumber_adapter import PdfPlumberAdapter
 from src.adapters.local_storage_adapter import LocalStorageAdapter
+from src.adapters.independent_quality_evaluator import IndependentQualityEvaluator
 
 
 class PdfObfuscationApplication:
@@ -23,6 +26,7 @@ class PdfObfuscationApplication:
         self,
         pdf_processor: Optional[PdfProcessorPort] = None,
         file_storage: Optional[FileStoragePort] = None,
+        quality_evaluator: Optional[QualityEvaluatorPort] = None,
         default_engine: str = "pymupdf"
     ):
         """
@@ -31,21 +35,30 @@ class PdfObfuscationApplication:
         Args:
             pdf_processor: PDF processor (default: PyMuPdfAdapter)
             file_storage: Storage system (default: LocalStorageAdapter)
+            quality_evaluator: Quality evaluator (default: IndependentQualityEvaluator)
             default_engine: Default engine to use (pymupdf)
         """
         # Default configuration
         self._file_storage = file_storage or LocalStorageAdapter()
         self._default_engine = default_engine
         self._pdf_processor = pdf_processor or self._create_processor(default_engine)
+        self._quality_evaluator = quality_evaluator or IndependentQualityEvaluator(self._file_storage)
         
         # Domain services
         self._obfuscation_service = DocumentObfuscationService()
+        self._quality_service = QualityEvaluationService()
         
         # Use cases
         self._obfuscate_use_case = ObfuscateDocumentUseCase(
             pdf_processor=self._pdf_processor,
             file_storage=self._file_storage,
             obfuscation_service=self._obfuscation_service
+        )
+        
+        self._evaluate_quality_use_case = EvaluateObfuscationQualityUseCase(
+            quality_evaluator=self._quality_evaluator,
+            file_storage=self._file_storage,
+            quality_service=self._quality_service
         )
     
     def _create_processor(self, engine: str) -> PdfProcessorPort:
@@ -75,7 +88,8 @@ class PdfObfuscationApplication:
         source_path: str,
         terms: List[str],
         destination_path: Optional[str] = None,
-        engine: str = "pymupdf"
+        engine: str = "pymupdf",
+        evaluate_quality: bool = False
     ) -> ObfuscationResult:
         """
         Obfuscate a PDF document with the specified terms.
@@ -85,6 +99,7 @@ class PdfObfuscationApplication:
             terms: List of terms to obfuscate
             destination_path: Destination path (optional)
             engine: Obfuscation engine to use
+            evaluate_quality: Whether to evaluate quality after obfuscation
             
         Returns:
             ObfuscationResult: Obfuscation result
@@ -138,6 +153,12 @@ class PdfObfuscationApplication:
             # Execute use case
             result = use_case.execute(source_path, [term.text for term in term_objects], dest_path)
             
+            # Evaluate quality if requested
+            if evaluate_quality and result.success:
+                quality_report = self.evaluate_quality(source_path, dest_path, terms, engine)
+                # Add quality report to the result (you might want to extend ObfuscationResult for this)
+                print(f"Quality evaluation completed. Overall score: {quality_report.metrics.overall_score}")
+            
             return result
             
         except (ObfuscationError, DocumentProcessingError, FileStorageError) as e:
@@ -152,6 +173,35 @@ class PdfObfuscationApplication:
                 error=f"Unexpected error: {str(e)}",
                 engine=engine
             )
+    
+    def evaluate_quality(
+        self,
+        original_document_path: str,
+        obfuscated_document_path: str,
+        terms_to_obfuscate: List[str],
+        engine_used: str = "unknown"
+    ) -> QualityReport:
+        """
+        Evaluate the quality of obfuscation for a given document.
+        
+        Args:
+            original_document_path: Path to the original PDF
+            obfuscated_document_path: Path to the obfuscated PDF
+            terms_to_obfuscate: List of terms that should have been obfuscated
+            engine_used: The obfuscation engine that was used
+            
+        Returns:
+            QualityReport: Complete quality evaluation report
+        """
+        try:
+            return self._evaluate_quality_use_case.execute(
+                original_document_path=original_document_path,
+                obfuscated_document_path=obfuscated_document_path,
+                terms_to_obfuscate=terms_to_obfuscate,
+                engine_used=engine_used
+            )
+        except Exception as e:
+            raise ObfuscationError(f"Error during quality evaluation: {str(e)}")
     
     def get_supported_engines(self) -> List[str]:
         """

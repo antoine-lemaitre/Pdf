@@ -3,7 +3,7 @@ Domain entities for PDF obfuscation.
 Pure business objects with no external dependencies.
 """
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from enum import Enum
 
 
@@ -12,6 +12,31 @@ class ProcessingStatus(Enum):
     SUCCESS = "success"
     NOT_FOUND = "not_found"
     ERROR = "error"
+
+
+@dataclass(frozen=True)
+class QualityMetrics:
+    """Quality metrics for obfuscation evaluation."""
+    completeness_score: float  # 0.0 to 1.0
+    precision_score: float     # 0.0 to 1.0
+    visual_integrity_score: float  # 0.0 to 1.0
+    overall_score: float       # 0.0 to 1.0
+    details: Dict[str, Any]
+    # New detailed information
+    non_obfuscated_terms: List[str]  # Terms that should have been obfuscated but weren't
+    false_positive_terms: List[str]  # Terms that were obfuscated by mistake
+
+
+@dataclass(frozen=True)
+class QualityReport:
+    """Complete quality evaluation report."""
+    original_document_path: str
+    obfuscated_document_path: str
+    terms_to_obfuscate: List[str]
+    engine_used: str
+    metrics: QualityMetrics
+    recommendations: List[str]
+    timestamp: str
 
 
 @dataclass(frozen=True)

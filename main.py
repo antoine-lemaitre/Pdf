@@ -32,14 +32,16 @@ def main():
     
     # CLI mode
     cli_parser = subparsers.add_parser("cli", help="Command line mode")
-    cli_parser.add_argument("document", help="Path to the PDF document")
-    cli_parser.add_argument("--terms", nargs="+", required=True, help="Terms to obfuscate")
+    cli_parser.add_argument("document", nargs="?", help="Path to the PDF document (original for quality evaluation)")
+    cli_parser.add_argument("obfuscated_document", nargs="?", help="Path to the obfuscated PDF document (for quality evaluation)")
+    cli_parser.add_argument("--terms", nargs="+", help="Terms to obfuscate or evaluate")
     cli_parser.add_argument("--output", help="Output file (optional)")
     cli_parser.add_argument("--engine", default="pymupdf", choices=["pymupdf", "pypdfium2", "pdfplumber", "borb"], help="Obfuscation engine")
     cli_parser.add_argument("--format", choices=["json", "text"], default="text", help="Output format")
     cli_parser.add_argument("--engines", action="store_true", help="List available engines")
     cli_parser.add_argument("--validate", action="store_true", help="Validate document only")
     cli_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose mode")
+    cli_parser.add_argument("--evaluate-quality", action="store_true", help="Evaluate quality after obfuscation or evaluate quality of existing obfuscated document")
     
     args = parser.parse_args()
     

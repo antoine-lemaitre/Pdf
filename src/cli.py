@@ -14,20 +14,27 @@ from src.application.pdf_obfuscation_app import PdfObfuscationApplication
 def main():
     """Main entry point for CLI interface."""
     parser = argparse.ArgumentParser(
-        description="Obfuscate terms in a PDF document",
+        description="Obfuscate terms in a PDF document or evaluate obfuscation quality",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
     %(prog)s document.pdf --terms "John Doe" "123-45-6789"
     %(prog)s input.pdf --terms "secret" --output output.pdf
     %(prog)s --validate document.pdf
+    %(prog)s --evaluate-quality original.pdf obfuscated.pdf --terms "John Doe"
         """
     )
     
     parser.add_argument(
         "document",
         nargs="?",
-        help="Path to the PDF document to process (optional for --engines)"
+        help="Path to the PDF document to process (optional for --engines or --evaluate-quality)"
+    )
+    
+    parser.add_argument(
+        "obfuscated_document",
+        nargs="?",
+        help="Path to the obfuscated PDF document (required for --evaluate-quality)"
     )
     
     parser.add_argument(
@@ -46,6 +53,12 @@ Examples:
         default="pymupdf",
         choices=["pymupdf", "pypdfium2", "pdfplumber"],
         help="Obfuscation engine to use (default: pymupdf)"
+    )
+    
+    parser.add_argument(
+        "--evaluate-quality",
+        action="store_true",
+        help="Evaluate quality after obfuscation or evaluate quality of existing obfuscated document"
     )
     
     parser.add_argument(
@@ -103,6 +116,56 @@ Examples:
                 print(f"Document {args.document}: {status}")
             return 0 if is_valid else 1
         
+        # Quality evaluation mode (independent)
+        if args.evaluate_quality and args.obfuscated_document:
+            if not args.document:
+                print("Error: Original document must be specified for quality evaluation", file=sys.stderr)
+                return 1
+            if not args.terms:
+                print("Error: Terms must be specified for quality evaluation", file=sys.stderr)
+                return 1
+            if not Path(args.document).exists():
+                print(f"Error: Original file {args.document} does not exist", file=sys.stderr)
+                return 1
+            if not Path(args.obfuscated_document).exists():
+                print(f"Error: Obfuscated file {args.obfuscated_document} does not exist", file=sys.stderr)
+                return 1
+            
+            if args.verbose:
+                print(f"Evaluating quality:")
+                print(f"  Original document: {args.document}")
+                print(f"  Obfuscated document: {args.obfuscated_document}")
+                print(f"  Terms: {', '.join(args.terms)}")
+            
+            # Execute quality evaluation
+            result = app.evaluate_quality(
+                original_document_path=args.document,
+                obfuscated_document_path=args.obfuscated_document,
+                terms_to_obfuscate=args.terms
+            )
+            
+            # Display quality evaluation results
+            if args.format == "json":
+                print(json.dumps({
+                    "overall_score": result.metrics.overall_score,
+                    "completeness_score": result.metrics.completeness_score,
+                    "precision_score": result.metrics.precision_score,
+                    "visual_integrity_score": result.metrics.visual_integrity_score,
+                    "recommendations": result.recommendations,
+                    "timestamp": result.timestamp
+                }, indent=2))
+            else:
+                print(f"Quality evaluation completed. Overall score: {result.metrics.overall_score}")
+                print(f"Completeness: {result.metrics.completeness_score}")
+                print(f"Precision: {result.metrics.precision_score}")
+                print(f"Visual Integrity: {result.metrics.visual_integrity_score}")
+                if result.recommendations:
+                    print("Recommendations:")
+                    for rec in result.recommendations:
+                        print(f"  - {rec}")
+            
+            return 0
+        
         # Argument checks for obfuscation
         if not args.document:
             print("Error: A document must be specified for obfuscation", file=sys.stderr)
@@ -120,13 +183,16 @@ Examples:
             print(f"Processing document: {args.document}")
             print(f"Terms to obfuscate: {', '.join(args.terms)}")
             print(f"Engine: {args.engine}")
+            if args.evaluate_quality:
+                print("Quality evaluation: enabled")
         
         # Execute obfuscation
         result = app.obfuscate_document(
             source_path=args.document,
             terms=args.terms,
             destination_path=args.output,
-            engine=args.engine
+            engine=args.engine,
+            evaluate_quality=args.evaluate_quality
         )
         
         # Display results
