@@ -181,60 +181,7 @@ async def evaluate_quality(request: QualityEvaluationRequest):
     )
 
 
-@app.post("/obfuscate-upload")
-async def obfuscate_upload(
-    file: UploadFile = File(...),
-    terms: str = Form(...),
-    engine: str = Form("pymupdf")
-):
-    """
-    Obfuscate a PDF document via file upload (form-data).
-    
-    Args:
-        file: Uploaded PDF file
-        terms: Comma-separated list of terms to obfuscate
-        engine: Obfuscation engine to use
-    """
-    # Validate file type
-    if not file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF files can be uploaded")
-    
-    # Parse terms
-    term_list = [term.strip() for term in terms.split(',') if term.strip()]
-    if not term_list:
-        raise HTTPException(status_code=400, detail="At least one term must be specified")
-    
-    # Create temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-        content = await file.read()
-        temp_file.write(content)
-        temp_file_path = temp_file.name
-    
-    try:
-        # Execute obfuscation
-        result = pdf_app.obfuscate_document(
-            source_path=temp_file_path,
-            terms=term_list,
-            engine=engine
-        )
-        
-        # Return obfuscated file if successful
-        if result.success and result.output_document:
-            return FileResponse(
-                result.output_document.path,
-                media_type='application/pdf',
-                filename=f"obfuscated_{file.filename}"
-            )
-        else:
-            # Return JSON response with error details
-            return _convert_result_to_response(result)
-            
-    finally:
-        # Clean up temporary file
-        try:
-            os.unlink(temp_file_path)
-        except:
-            pass
+
 
 
 def _convert_result_to_response(result) -> ObfuscationResponse:

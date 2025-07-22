@@ -97,9 +97,6 @@ The service can be used in CLI or API server mode.
 # Obfuscate terms in a PDF (PyMuPDF by default)
 uv run python main.py document.pdf --terms "John Doe" "123-45-6789"
 
-# Obfuscate terms in a PDF (PyMuPDF by default)
-uv run python main.py document.pdf --terms "John Doe" "123-45-6789"
-
 # Specify an output file
 uv run python main.py input.pdf --terms "confidential" --output output.pdf
 
@@ -137,7 +134,7 @@ Once the server is started, the API is available at `http://localhost:8000`
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 
-#### Main endpoints
+#### Available endpoints
 
 ```bash
 # Service health
@@ -146,41 +143,24 @@ GET /health
 # Available engines
 GET /engines
 
-# Obfuscation via file upload
-POST /obfuscate
-# Form-data: file (PDF), terms (string), engine (string)
-
 # Obfuscation via JSON
-POST /obfuscate-json
+POST /obfuscate
 # JSON: {"source_path": "...", "terms": [...], "engine": "pymupdf", "evaluate_quality": true}
 
 # Quality evaluation
 POST /evaluate-quality
 # JSON: {"original_document_path": "...", "obfuscated_document_path": "...", "terms": [...], "engine_used": "pymupdf"}
-
-# Document validation
-POST /validate
-# Form-data: file (PDF)
-
-# Download obfuscated file
-GET /download/{file_path}
 ```
 
 ### API usage examples
 
 ```bash
-# Upload and obfuscation (PyMuPDF)
-curl -X POST "http://localhost:8000/obfuscate" \
-  -F "file=@document.pdf" \
-  -F "terms=John Doe,123-45-6789" \
-  -F "engine=pymupdf"
-
 # Obfuscation via JSON (local file) with quality evaluation
-curl -X POST "http://localhost:8000/obfuscate-json" \
+curl -X POST "http://localhost:8000/obfuscate" \
   -H "Content-Type: application/json" \
   -d '{
     "source_path": "/path/to/document.pdf",
-    "terms": ["confidential", "secret"],
+    "terms": [{"text": "confidential"}, {"text": "secret"}],
     "destination_path": "/path/to/output.pdf",
     "engine": "pymupdf",
     "evaluate_quality": true
@@ -195,10 +175,6 @@ curl -X POST "http://localhost:8000/evaluate-quality" \
     "terms": [{"text": "John Doe"}, {"text": "123-45-6789"}],
     "engine_used": "pymupdf"
   }'
-
-# Validation
-curl -X POST "http://localhost:8000/validate" \
-  -F "file=@document.pdf"
 ```
 
 ## 🔧 Configuration
