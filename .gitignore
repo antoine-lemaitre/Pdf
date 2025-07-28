@@ -15,5 +15,5 @@ data/
 
 # testing script
 test_obfuscation.sh
-.DS_Store
 Pdf.code-workspace
+.DS_Store
