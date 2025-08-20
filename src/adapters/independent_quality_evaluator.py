@@ -100,54 +100,76 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
         """
         Evaluate if only target terms were obfuscated (no false positives).
         
-        Strategy: Compare original vs obfuscated document to find changes.
+        Strategy: Compare original vs obfuscated document by checking word presence in order.
+        For each word in original, check if it's present in obfuscated starting from the last found position.
         """
         try:
             # Extract text from both documents
             original_text_result = self._extract_text_with_ocr(original_document)
             obfuscated_text_result = self._extract_text_with_ocr(obfuscated_document)
             
-            # Find all terms that disappeared or changed
-            # Look for longer text segments (not individual words)
-            original_segments = re.findall(r'\b\w{8,}\b', original_text_result.text.lower())
-            obfuscated_segments = re.findall(r'\b\w{8,}\b', obfuscated_text_result.text.lower())
+            # Split texts into words
+            original_words = re.findall(r'\b\w+\b', original_text_result.text.lower())
+            obfuscated_words = re.findall(r'\b\w+\b', obfuscated_text_result.text.lower())
             
-            original_set = set(original_segments)
-            obfuscated_set = set(obfuscated_segments)
-            disappeared_terms = original_set - obfuscated_set
+            # Sort both lists alphabetically to handle OCR differences
+            original_words.sort()
+            obfuscated_words.sort()
             
-            # Also look for exact matches of target terms
-            target_terms_found = []
-            for target_term in terms_to_obfuscate:
-                if target_term.lower() in original_text_result.text.lower() and target_term.lower() not in obfuscated_text_result.text.lower():
-                    target_terms_found.append(target_term)
+            # Track missing words and current search position
+            missing_words = []
+            current_search_position = 0
             
-            # Combine both lists
-            significant_disappeared = list(disappeared_terms) + target_terms_found
+            # Check each word from original in order
+            for original_word in original_words:
+                word_found = False
+                
+                # Search for the word starting from current position
+                for i in range(current_search_position, len(obfuscated_words)):
+                    if obfuscated_words[i] == original_word:
+                        word_found = True
+                        current_search_position = i + 1  # Start next search from position after found word
+                        break
+                
+                # If word not found, add to missing words list
+                if not word_found:
+                    missing_words.append(original_word)
             
-            # Check which disappeared terms were NOT in target list
-            false_positives = []
-            for term in significant_disappeared:
-                # Check if this term was NOT in our target list
-                was_targeted = any(term.lower() in target_term.lower() or target_term.lower() in term.lower() for target_term in terms_to_obfuscate)
-                if not was_targeted:
-                    false_positives.append(term)
+            # Filter out intentionally obfuscated terms from false positives
+            # Create a list of target terms to obfuscate (lowercase for comparison)
+            target_terms_lower = [term.lower() for term in terms_to_obfuscate]
             
-            # Calculate precision score
-            precision_score = 1.0
-            if len(significant_disappeared) > 0:
-                precision_score = 1.0 - (len(false_positives) / len(significant_disappeared))
+            # Filter missing words to keep only true false positives
+            true_false_positives = []
+            for missing_word in missing_words:
+                # Check if this missing word was NOT in our target list
+                was_intentionally_obfuscated = any(
+                    target_term in missing_word or missing_word in target_term 
+                    for target_term in target_terms_lower
+                )
+                if not was_intentionally_obfuscated:
+                    true_false_positives.append(missing_word)
+            
+            # Calculate precision metrics
+            total_original_words = len(original_words)
+            words_found = total_original_words - len(missing_words)
+            
+            # Calculate precision score (ratio of words that were preserved)
+            precision_score = 0.0
+            if total_original_words > 0:
+                precision_score = words_found / total_original_words
             
             return {
-                "score": round(max(0.0, precision_score), 3),
-                "total_disappeared_terms": len(significant_disappeared),
-                "false_positives": false_positives,
-                "false_positives_list": false_positives,
+                "score": round(precision_score, 3),
+                "total_disappeared_terms": len(missing_words),
+                "false_positive_count": len(true_false_positives),
                 "details": {
-                    "disappeared_terms": list(significant_disappeared),
-                    "false_positive_count": len(false_positives),
+                    "total_original_words": total_original_words,
                     "original_word_count": original_text_result.word_count,
-                    "obfuscated_word_count": obfuscated_text_result.word_count
+                    "obfuscated_word_count": obfuscated_text_result.word_count,
+                    "words_found": words_found,
+                    "false_positives": true_false_positives,
+                    "intentionally_obfuscated_count": len(missing_words) - len(true_false_positives)
                 }
             }
             

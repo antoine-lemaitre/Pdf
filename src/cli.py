@@ -146,18 +146,51 @@ Examples:
             
             # Display quality evaluation results
             if args.format == "json":
-                print(json.dumps({
+                output_data = {
                     "overall_score": result.metrics.overall_score,
                     "completeness_score": result.metrics.completeness_score,
                     "precision_score": result.metrics.precision_score,
                     "visual_integrity_score": result.metrics.visual_integrity_score,
-                    "timestamp": result.timestamp
-                }, indent=2))
+                    "timestamp": result.timestamp,
+                    "details": result.metrics.details
+                }
+                print(json.dumps(output_data, indent=2))
             else:
                 print(f"Quality evaluation completed. Overall score: {result.metrics.overall_score}")
                 print(f"Completeness: {result.metrics.completeness_score}")
                 print(f"Precision: {result.metrics.precision_score}")
                 print(f"Visual Integrity: {result.metrics.visual_integrity_score}")
+                
+                # Display details
+                if result.metrics.details:
+                    print("\nDetails:")
+                    
+                    # Completeness details
+                    if 'completeness' in result.metrics.details:
+                        comp_details = result.metrics.details['completeness']
+                        print(f"  Completeness Details:")
+                        print(f"    Total terms found: {comp_details.get('total_terms_found', 'N/A')}")
+                        print(f"    Successfully obfuscated: {comp_details.get('successfully_obfuscated', 'N/A')}")
+                        if comp_details.get('remaining_terms'):
+                            print(f"    Remaining terms: {comp_details['remaining_terms']}")
+                    
+                    # Precision details
+                    if 'precision' in result.metrics.details:
+                        prec_details = result.metrics.details['precision']
+                        print(f"  Precision Details:")
+                        print(f"    Total original words: {prec_details.get('total_original_words', 'N/A')}")
+                        print(f"    Words found: {prec_details.get('words_found', 'N/A')}")
+                        if prec_details.get('missing_words'):
+                            print(f"    Missing words: {prec_details['missing_words']}")
+                    
+                    # Visual integrity details
+                    if 'visual_integrity' in result.metrics.details:
+                        vis_details = result.metrics.details['visual_integrity']
+                        print(f"  Visual Integrity Details:")
+                        print(f"    Page count match: {vis_details.get('page_count_match', 'N/A')}")
+                        print(f"    Dimension matches: {vis_details.get('dimension_matches', 'N/A')}")
+                        if vis_details.get('size_differences'):
+                            print(f"    Size differences: {vis_details['size_differences']}")
             
             return 0
         
