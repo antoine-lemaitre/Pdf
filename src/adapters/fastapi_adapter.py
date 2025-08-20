@@ -3,7 +3,7 @@ FastAPI adapter for PDF obfuscation service.
 """
 import tempfile
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pathlib import Path
 
 try:
@@ -39,6 +39,7 @@ class QualityMetricsResponse(BaseModel):
     overall_score: float
     non_obfuscated_terms: List[str] = []
     false_positive_terms: List[str] = []
+    precision_details: Optional[Dict[str, Any]] = None
 
 
 class QualityEvaluationRequest(BaseModel):
@@ -164,6 +165,11 @@ async def evaluate_quality(request: QualityEvaluationRequest):
         engine_used=request.engine_used
     )
     
+    # Extract precision details from the quality report
+    precision_details = None
+    if hasattr(quality_report.metrics, 'details') and 'precision' in quality_report.metrics.details:
+        precision_details = quality_report.metrics.details['precision']
+    
     return QualityEvaluationResponse(
         original_document_path=quality_report.original_document_path,
         obfuscated_document_path=quality_report.obfuscated_document_path,
@@ -175,7 +181,8 @@ async def evaluate_quality(request: QualityEvaluationRequest):
             visual_integrity_score=quality_report.metrics.visual_integrity_score,
             overall_score=quality_report.metrics.overall_score,
             non_obfuscated_terms=quality_report.metrics.non_obfuscated_terms,
-            false_positive_terms=quality_report.metrics.false_positive_terms
+            false_positive_terms=quality_report.metrics.false_positive_terms,
+            precision_details=precision_details
         ),
         timestamp=quality_report.timestamp
     )

@@ -4,7 +4,7 @@ Uses different libraries than the obfuscation engines to avoid bias.
 """
 import re
 import io
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from pdf2image import convert_from_bytes
 import pytesseract
@@ -79,6 +79,7 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
                 "total_terms_found": total_terms_to_obfuscate,
                 "successfully_obfuscated": successfully_obfuscated,
                 "remaining_terms": obfuscated_terms_found,
+                "obfuscated_terms_list": obfuscated_terms_found,
                 "details": {
                     "original_terms": original_terms_found,
                     "obfuscated_terms": obfuscated_terms_found,
@@ -99,41 +100,51 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
         """
         Evaluate if only target terms were obfuscated (no false positives).
         
-        Strategy: Check if non-target text was accidentally obfuscated.
+        Strategy: Compare original vs obfuscated document to find changes.
         """
         try:
             # Extract text from both documents
             original_text_result = self._extract_text_with_ocr(original_document)
             obfuscated_text_result = self._extract_text_with_ocr(obfuscated_document)
             
-            # Get common words that should NOT be obfuscated
-            non_target_terms = self._get_non_target_terms(original_text_result.text)
+            # Find all terms that disappeared or changed
+            # Look for longer text segments (not individual words)
+            original_segments = re.findall(r'\b\w{8,}\b', original_text_result.text.lower())
+            obfuscated_segments = re.findall(r'\b\w{8,}\b', obfuscated_text_result.text.lower())
             
-            # Check if non-target terms were affected
+            original_set = set(original_segments)
+            obfuscated_set = set(obfuscated_segments)
+            disappeared_terms = original_set - obfuscated_set
+            
+            # Also look for exact matches of target terms
+            target_terms_found = []
+            for target_term in terms_to_obfuscate:
+                if target_term.lower() in original_text_result.text.lower() and target_term.lower() not in obfuscated_text_result.text.lower():
+                    target_terms_found.append(target_term)
+            
+            # Combine both lists
+            significant_disappeared = list(disappeared_terms) + target_terms_found
+            
+            # Check which disappeared terms were NOT in target list
             false_positives = []
-            for term in non_target_terms:
-                if term in original_text_result.text and term not in obfuscated_text_result.text:
+            for term in significant_disappeared:
+                # Check if this term was NOT in our target list
+                was_targeted = any(term.lower() in target_term.lower() or target_term.lower() in term.lower() for target_term in terms_to_obfuscate)
+                if not was_targeted:
                     false_positives.append(term)
             
             # Calculate precision score
             precision_score = 1.0
-            if len(non_target_terms) > 0:
-                precision_score = 1.0 - (len(false_positives) / len(non_target_terms))
-            
-            # Additional check: compare word count reduction
-            word_reduction_ratio = 0.0
-            if original_text_result.word_count > 0:
-                word_reduction_ratio = (
-                    original_text_result.word_count - obfuscated_text_result.word_count
-                ) / original_text_result.word_count
+            if len(significant_disappeared) > 0:
+                precision_score = 1.0 - (len(false_positives) / len(significant_disappeared))
             
             return {
                 "score": round(max(0.0, precision_score), 3),
+                "total_disappeared_terms": len(significant_disappeared),
                 "false_positives": false_positives,
-                "non_target_terms_checked": len(non_target_terms),
-                "word_reduction_ratio": round(word_reduction_ratio, 3),
+                "false_positives_list": false_positives,
                 "details": {
-                    "non_target_terms": non_target_terms[:10],  # Limit for readability
+                    "disappeared_terms": list(significant_disappeared),
                     "false_positive_count": len(false_positives),
                     "original_word_count": original_text_result.word_count,
                     "obfuscated_word_count": obfuscated_text_result.word_count
@@ -252,25 +263,11 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
         
         return found_terms
     
-    def _get_non_target_terms(self, text: str) -> List[str]:
-        """Get common words that should NOT be obfuscated."""
-        # Common French words that should remain visible
-        common_words = [
-            "le", "la", "les", "un", "une", "des", "et", "ou", "de", "du", "des",
-            "à", "au", "aux", "avec", "sans", "pour", "par", "sur", "sous",
-            "je", "tu", "il", "elle", "nous", "vous", "ils", "elles",
-            "être", "avoir", "faire", "dire", "aller", "voir", "savoir",
-            "nom", "prénom", "adresse", "téléphone", "email", "cv", "curriculum",
-            "expérience", "formation", "compétences", "langues", "projet"
-        ]
-        
-        # Find common words that appear in the text
-        text_lower = text.lower()
-        found_common_words = [word for word in common_words if word in text_lower]
-        
-        return found_common_words
+
     
     def _convert_pdf_to_images(self, document: Document):
         """Convert PDF to images for visual comparison."""
         pdf_content = self._file_storage.read_file(document.path)
         return self._pdf2image(pdf_content) 
+
+ 
