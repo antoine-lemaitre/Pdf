@@ -98,7 +98,7 @@ class PyPdfium2Adapter(PdfProcessorPort):
     def obfuscate_occurrences(self, document: Document, occurrences: List[TermOccurrence]) -> bytes:
         """
         Obfuscate using pypdfium2 rendering and PIL+ReportLab image processing.
-        Robust raster-based approach for maximum compatibility.
+        High-resolution approach: work at high resolution for precision, then resize for optimal file size.
         """
         try:
             pdf_content = self._file_storage.read_file(document.path)
@@ -127,27 +127,31 @@ class PyPdfium2Adapter(PdfProcessorPort):
                     # Fallback to page dimensions
                     bbox_x0, bbox_y0, bbox_x1, bbox_y1 = 0, 0, page_width, page_height
                 
-                # Render page as high-resolution image
-                scale = 2.0
-                bitmap = page.render(scale=scale, optimize_mode="print")
+                # High-resolution rendering for maximum precision
+                scale = 5.0  # Very high resolution for precise obfuscation
+                bitmap = page.render(
+                    scale=scale, 
+                    optimize_mode="print",  # Best quality for text
+                    rotation=0
+                )
                 pil_image = bitmap.to_pil()
                 
-                # Calculate scale factors
+                # Calculate scale factors for high-resolution image
                 img_w, img_h = pil_image.size
                 scale_x = img_w / page_width
                 scale_y = img_h / page_height
                 
-                # Draw black rectangles for obfuscation
+                # Draw black rectangles for obfuscation at high resolution
                 draw = ImageDraw.Draw(pil_image)
                 
                 for occ in occ_by_page.get(page_index, []):
-                    # Apply bbox offset adjustment (same logic as pdfplumber)
+                    # Apply bbox offset adjustment
                     x0_adjusted = occ.position.x0 - bbox_x0
                     y0_adjusted = occ.position.y0 - bbox_y0
                     x1_adjusted = occ.position.x1 - bbox_x0
                     y1_adjusted = occ.position.y1 - bbox_y0
                     
-                    # Convert PDF coordinates to image coordinates
+                    # Convert PDF coordinates to high-resolution image coordinates
                     x0 = x0_adjusted * scale_x
                     y0 = img_h - (y1_adjusted * scale_y)  # Invert Y axis
                     x1 = x1_adjusted * scale_x
@@ -162,12 +166,20 @@ class PyPdfium2Adapter(PdfProcessorPort):
                     height_adjustment = bbox_offset * scale_y
                     y0 -= height_adjustment  # Extend only above
                     
-                    # Draw black rectangle
+                    # Draw black rectangle at high resolution
                     draw.rectangle([x0, y0, x1, y1], fill=(0, 0, 0))
                 
-                # Convert PIL image to PDF using ReportLab
+                # Resize to optimal resolution for PDF output (2.5x scale)
+                target_scale = 2.5
+                target_width = int(page_width * target_scale)
+                target_height = int(page_height * target_scale)
+                
+                # Use high-quality resizing (LANCZOS for best quality)
+                resized_image = pil_image.resize((target_width, target_height), Image.Resampling.LANCZOS)
+                
+                # Convert resized image to PDF using ReportLab with optimized compression
                 img_buffer = io.BytesIO()
-                pil_image.save(img_buffer, format='PNG', optimize=False)
+                resized_image.save(img_buffer, format='JPEG', quality=95, optimize=True)
                 img_buffer.seek(0)
                 
                 # Add image to PDF page
