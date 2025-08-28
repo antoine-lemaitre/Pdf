@@ -244,19 +244,27 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
         }
     
     def _extract_text_with_ocr(self, document: Document) -> TextExtractionResult:
-        """Extract text from PDF using OCR."""
+        """Extract text from PDF using Tesseract with optimized configuration."""
         try:
             pdf_content = self._file_storage.read_file(document.path)
             
-            # Convert PDF to images
-            images = self._pdf2image(pdf_content)
+            # Convert PDF to images with optimal resolution for OCR
+            images = self._pdf2image(pdf_content, dpi=400)  # Good balance between quality and performance
             
-            # Extract text from all pages using OCR
+            # Extract text from all pages using Tesseract with optimized settings
             pages = []
             full_text = ""
             
             for image in images:
-                page_text = self._pytesseract.image_to_string(image, lang='fra+eng')
+                # Configure Tesseract for better text recognition
+                custom_config = r'--oem 3 --psm 6 -c preserve_interword_spaces=1 -c textord_heavy_nr=1 -c textord_min_linesize=2'
+                
+                page_text = self._pytesseract.image_to_string(
+                    image, 
+                    lang='eng',
+                    config=custom_config
+                )
+                
                 pages.append(page_text)
                 full_text += page_text + " "
             
@@ -272,7 +280,7 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
             )
             
         except Exception as e:
-            raise DocumentProcessingError(f"Error extracting text with OCR: {str(e)}")
+            raise DocumentProcessingError(f"Error extracting text with Tesseract: {str(e)}")
     
     def _find_terms_in_text(self, text: str, terms: List[str]) -> List[str]:
         """Find which terms appear in the text."""
