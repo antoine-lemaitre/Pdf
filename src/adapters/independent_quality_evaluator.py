@@ -261,7 +261,7 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
                 
                 page_text = self._pytesseract.image_to_string(
                     image, 
-                    lang='eng',
+                    lang='eng+fra+deu+spa+ita+por+nld+pol+rus+jpn+chi_sim+chi_tra+ces+dan+fin+ell+heb+hun+nor+ron+slk+slv+swe+tur+hrv',
                     config=custom_config
                 )
                 
