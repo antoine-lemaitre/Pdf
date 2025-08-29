@@ -4,6 +4,8 @@ Uses different libraries than the obfuscation engines to avoid bias.
 """
 import re
 import io
+from tarfile import LNKTYPE
+import time
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from pdf2image import convert_from_bytes
@@ -16,11 +18,12 @@ from ..domain.exceptions import DocumentProcessingError
 
 @dataclass
 class TextExtractionResult:
-    """Result of text extraction from a PDF."""
+    """Result of text extraction from a document."""
     text: str
     page_count: int
     word_count: int
     pages: List[str]
+    execution_time: float = 0.0
 
 
 class IndependentQualityEvaluator(QualityEvaluatorPort):
@@ -46,50 +49,37 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
         obfuscated_document: Document, 
         terms_to_obfuscate: List[str]
     ) -> Dict[str, Any]:
-        """
-        Evaluate if all target terms were properly obfuscated.
+        """Evaluate if all target terms were properly obfuscated."""
+        # Extract text from both documents
+        original_extraction = self._extract_text_with_ocr(original_document)
+        obfuscated_extraction = self._extract_text_with_ocr(obfuscated_document)
         
-        Strategy: Extract text using OCR and compare term presence.
-        """
-        try:
-            # Extract text from both documents using OCR
-            original_text_result = self._extract_text_with_ocr(original_document)
-            obfuscated_text_result = self._extract_text_with_ocr(obfuscated_document)
-            
-            # Find terms in original document
-            original_terms_found = self._find_terms_in_text(
-                original_text_result.text, terms_to_obfuscate
-            )
-            
-            # Find terms in obfuscated document
-            obfuscated_terms_found = self._find_terms_in_text(
-                obfuscated_text_result.text, terms_to_obfuscate
-            )
-            
-            # Calculate completeness metrics
-            total_terms_to_obfuscate = len(original_terms_found)
-            successfully_obfuscated = total_terms_to_obfuscate - len(obfuscated_terms_found)
-            
-            completeness_score = 0.0
-            if total_terms_to_obfuscate > 0:
-                completeness_score = successfully_obfuscated / total_terms_to_obfuscate
-            
-            return {
-                "score": round(completeness_score, 3),
-                "total_terms_found": total_terms_to_obfuscate,
-                "successfully_obfuscated": successfully_obfuscated,
-                "remaining_terms": obfuscated_terms_found,
-                "obfuscated_terms_list": obfuscated_terms_found,
-                "details": {
-                    "original_terms": original_terms_found,
-                    "obfuscated_terms": obfuscated_terms_found,
-                    "original_word_count": original_text_result.word_count,
-                    "obfuscated_word_count": obfuscated_text_result.word_count
-                }
+        # Find terms in original document
+        original_terms = self._find_terms_in_text(original_extraction.text, terms_to_obfuscate)
+        
+        # Find terms in obfuscated document
+        obfuscated_terms = self._find_terms_in_text(obfuscated_extraction.text, terms_to_obfuscate)
+        
+        # Calculate completeness
+        total_terms_found = len(original_terms)
+        successfully_obfuscated = total_terms_found - len(obfuscated_terms)
+        completeness_score = successfully_obfuscated / total_terms_found if total_terms_found > 0 else 1.0
+        
+        return {
+            "score": completeness_score,
+            "total_terms_found": total_terms_found,
+            "successfully_obfuscated": successfully_obfuscated,
+            "remaining_terms": obfuscated_terms,
+            "obfuscated_terms_list": obfuscated_terms,
+            "details": {
+                "original_terms": original_terms,
+                "obfuscated_terms": obfuscated_terms,
+                "original_word_count": original_extraction.word_count,
+                "obfuscated_word_count": obfuscated_extraction.word_count,
+                "original_ocr_time": original_extraction.execution_time,
+                "obfuscated_ocr_time": obfuscated_extraction.execution_time
             }
-            
-        except Exception as e:
-            raise DocumentProcessingError(f"Error evaluating completeness: {str(e)}")
+        }
     
     def evaluate_precision(
         self, 
@@ -244,7 +234,8 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
         }
     
     def _extract_text_with_ocr(self, document: Document) -> TextExtractionResult:
-        """Extract text from PDF using Tesseract with optimized configuration."""
+        """Extract text from PDF using OCR with improved configuration."""
+        start_time = time.time()
         try:
             pdf_content = self._file_storage.read_file(document.path)
             
@@ -260,8 +251,8 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
                 custom_config = r'--oem 3 --psm 6 -c preserve_interword_spaces=1 -c textord_heavy_nr=1 -c textord_min_linesize=2'
                 
                 page_text = self._pytesseract.image_to_string(
-                    image, 
-                    lang='eng+fra+deu+spa+ita+por+nld+pol+rus+jpn+chi_sim+chi_tra+ces+dan+fin+ell+heb+hun+nor+ron+slk+slv+swe+tur+hrv',
+                    image,
+                    lang='eng',
                     config=custom_config
                 )
                 
@@ -272,15 +263,19 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
             full_text = re.sub(r'\s+', ' ', full_text).strip()
             word_count = len(full_text.split())
             
+            execution_time = time.time() - start_time
+            
             return TextExtractionResult(
                 text=full_text,
                 page_count=len(pages),
                 word_count=word_count,
-                pages=pages
+                pages=pages,
+                execution_time=execution_time
             )
             
         except Exception as e:
-            raise DocumentProcessingError(f"Error extracting text with Tesseract: {str(e)}")
+            execution_time = time.time() - start_time
+            raise DocumentProcessingError(f"Error extracting text with OCR: {str(e)}")
     
     def _find_terms_in_text(self, text: str, terms: List[str]) -> List[str]:
         """Find which terms appear in the text."""

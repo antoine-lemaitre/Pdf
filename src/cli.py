@@ -146,13 +146,22 @@ Examples:
             
             # Display quality evaluation results
             if args.format == "json":
+                # Get OCR execution times from details
+                completeness_details = result.metrics.details.get('completeness', {}).get('details', {})
+                original_ocr_time = completeness_details.get('original_ocr_time', 'N/A')
+                obfuscated_ocr_time = completeness_details.get('obfuscated_ocr_time', 'N/A')
+                
                 output_data = {
                     "overall_score": result.metrics.overall_score,
                     "completeness_score": result.metrics.completeness_score,
                     "precision_score": result.metrics.precision_score,
                     "visual_integrity_score": result.metrics.visual_integrity_score,
                     "timestamp": result.timestamp,
-                    "details": result.metrics.details
+                    "details": result.metrics.details,
+                    "ocr_execution_times": {
+                        "original_document": original_ocr_time,
+                        "obfuscated_document": obfuscated_ocr_time
+                    }
                 }
                 print(json.dumps(output_data, indent=2))
             else:
