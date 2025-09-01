@@ -64,14 +64,18 @@ class EvaluateObfuscationQualityUseCase:
             original_document = Document(path=original_document_path)
             obfuscated_document = Document(path=obfuscated_document_path)
             
+            # Extract documents once (mutualized)
+            original_extraction, obfuscated_extraction = self._quality_evaluator._extract_documents_once(original_document, obfuscated_document)
+            
             # Evaluate completeness
             completeness_result = self._quality_evaluator.evaluate_completeness(
                 original_document, obfuscated_document, terms_to_obfuscate
             )
             
-            # Evaluate precision
+            # Evaluate precision (pass extractions to avoid duplication)
             precision_result = self._quality_evaluator.evaluate_precision(
-                original_document, obfuscated_document, terms_to_obfuscate
+                original_document, obfuscated_document, terms_to_obfuscate,
+                original_extraction, obfuscated_extraction
             )
             
             # Evaluate visual integrity

@@ -18,7 +18,7 @@ from ..domain.exceptions import DocumentProcessingError
 
 @dataclass
 class TextExtractionResult:
-    """Result of text extraction from a document."""
+    """Result of text extraction from a PDF."""
     text: str
     page_count: int
     word_count: int
@@ -50,57 +50,62 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
         terms_to_obfuscate: List[str]
     ) -> Dict[str, Any]:
         """Evaluate if all target terms were properly obfuscated."""
-        # Extract text from both documents
-        original_extraction = self._extract_text_with_ocr(original_document)
-        obfuscated_extraction = self._extract_text_with_ocr(obfuscated_document)
-        
-        # Find terms in original document
-        original_terms = self._find_terms_in_text(original_extraction.text, terms_to_obfuscate)
-        
-        # Find terms in obfuscated document
-        obfuscated_terms = self._find_terms_in_text(obfuscated_extraction.text, terms_to_obfuscate)
-        
-        # Calculate completeness
-        total_terms_found = len(original_terms)
-        successfully_obfuscated = total_terms_found - len(obfuscated_terms)
-        completeness_score = successfully_obfuscated / total_terms_found if total_terms_found > 0 else 1.0
-        
-        return {
-            "score": completeness_score,
-            "total_terms_found": total_terms_found,
-            "successfully_obfuscated": successfully_obfuscated,
-            "remaining_terms": obfuscated_terms,
-            "obfuscated_terms_list": obfuscated_terms,
-            "details": {
-                "original_terms": original_terms,
-                "obfuscated_terms": obfuscated_terms,
-                "original_word_count": original_extraction.word_count,
-                "obfuscated_word_count": obfuscated_extraction.word_count,
-                "original_ocr_time": original_extraction.execution_time,
-                "obfuscated_ocr_time": obfuscated_extraction.execution_time
+        try:
+            # Extract text from both documents (mutualized)
+            original_extraction, obfuscated_extraction = self._extract_documents_once(original_document, obfuscated_document)
+            
+            # Find terms in original document
+            original_terms = self._find_terms_in_text(original_extraction.text, terms_to_obfuscate)
+            
+            # Find terms in obfuscated document
+            obfuscated_terms = self._find_terms_in_text(obfuscated_extraction.text, terms_to_obfuscate)
+            
+            # Calculate completeness
+            total_terms_found = len(original_terms)
+            successfully_obfuscated = total_terms_found - len(obfuscated_terms)
+            completeness_score = successfully_obfuscated / total_terms_found if total_terms_found > 0 else 1.0
+            
+            return {
+                "score": completeness_score,
+                "total_terms_found": total_terms_found,
+                "successfully_obfuscated": successfully_obfuscated,
+                "remaining_terms": obfuscated_terms,
+                "obfuscated_terms_list": obfuscated_terms,
+                "details": {
+                    "original_terms": original_terms,
+                    "obfuscated_terms": obfuscated_terms,
+                    "original_word_count": original_extraction.word_count,
+                    "obfuscated_word_count": obfuscated_extraction.word_count
+                }
             }
-        }
+        except Exception as e:
+            raise DocumentProcessingError(f"Error evaluating completeness: {str(e)}")
     
     def evaluate_precision(
         self, 
         original_document: Document, 
         obfuscated_document: Document, 
-        terms_to_obfuscate: List[str]
+        terms_to_obfuscate: List[str],
+        original_extraction: Optional[TextExtractionResult] = None,
+        obfuscated_extraction: Optional[TextExtractionResult] = None
     ) -> Dict[str, Any]:
         """
         Evaluate if only target terms were obfuscated (no false positives).
         
-        Strategy: Compare original vs obfuscated document by checking word presence in order.
-        For each word in original, check if it's present in obfuscated starting from the last found position.
+        Strategy: Compare word counts and analyze what disappeared.
         """
+        # Use provided extractions or extract if not provided
+        if original_extraction is None or obfuscated_extraction is None:
+            original_extraction, obfuscated_extraction = self._extract_documents_once(original_document, obfuscated_document)
+        
         try:
-            # Extract text from both documents
-            original_text_result = self._extract_text_with_ocr(original_document)
-            obfuscated_text_result = self._extract_text_with_ocr(obfuscated_document)
+            # Use the provided extractions (no need to extract again)
+            original_text = original_extraction.text
+            obfuscated_text = obfuscated_extraction.text
             
             # Split texts into words
-            original_words = re.findall(r'\b\w+\b', original_text_result.text.lower())
-            obfuscated_words = re.findall(r'\b\w+\b', obfuscated_text_result.text.lower())
+            original_words = re.findall(r'\b\w+\b', original_text.lower())
+            obfuscated_words = re.findall(r'\b\w+\b', obfuscated_text.lower())
             
             # Sort both lists alphabetically to handle OCR differences
             original_words.sort()
@@ -155,8 +160,8 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
                 "false_positive_count": len(true_false_positives),
                 "details": {
                     "total_original_words": total_original_words,
-                    "original_word_count": original_text_result.word_count,
-                    "obfuscated_word_count": obfuscated_text_result.word_count,
+                    "original_word_count": original_extraction.word_count,
+                    "obfuscated_word_count": obfuscated_extraction.word_count,
                     "words_found": words_found,
                     "false_positives": true_false_positives,
                     "intentionally_obfuscated_count": len(missing_words) - len(true_false_positives)
@@ -251,8 +256,8 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
                 custom_config = r'--oem 3 --psm 6 -c preserve_interword_spaces=1 -c textord_heavy_nr=1 -c textord_min_linesize=2'
                 
                 page_text = self._pytesseract.image_to_string(
-                    image,
-                    lang='eng',
+                    image, 
+                    lang='eng+fra+deu+spa+ita+por+nld+pol+rus+jpn+chi_sim+chi_tra+ces+dan+fin+ell+heb+hun+nor+ron+slk+slv+swe+tur+hrv',
                     config=custom_config
                 )
                 
@@ -276,6 +281,12 @@ class IndependentQualityEvaluator(QualityEvaluatorPort):
         except Exception as e:
             execution_time = time.time() - start_time
             raise DocumentProcessingError(f"Error extracting text with OCR: {str(e)}")
+    
+    def _extract_documents_once(self, original_document: Document, obfuscated_document: Document) -> tuple[TextExtractionResult, TextExtractionResult]:
+        """Extract text from both documents once and return results."""
+        original_extraction = self._extract_text_with_ocr(original_document)
+        obfuscated_extraction = self._extract_text_with_ocr(obfuscated_document)
+        return original_extraction, obfuscated_extraction
     
     def _find_terms_in_text(self, text: str, terms: List[str]) -> List[str]:
         """Find which terms appear in the text."""
