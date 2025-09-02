@@ -16,7 +16,8 @@ from src.adapters.pymupdf_adapter import PyMuPdfAdapter
 from src.adapters.pypdfium2_adapter import PyPdfium2Adapter
 from src.adapters.pdfplumber_adapter import PdfPlumberAdapter
 from src.adapters.local_storage_adapter import LocalStorageAdapter
-from src.adapters.independent_quality_evaluator import IndependentQualityEvaluator
+from src.adapters.tesseract_text_extractor import TesseractTextExtractor
+from src.adapters.quality_evaluator import QualityEvaluator
 
 
 class PdfObfuscationApplication:
@@ -35,14 +36,14 @@ class PdfObfuscationApplication:
         Args:
             pdf_processor: PDF processor (default: PyMuPdfAdapter)
             file_storage: Storage system (default: LocalStorageAdapter)
-            quality_evaluator: Quality evaluator (default: IndependentQualityEvaluator)
+            quality_evaluator: Quality evaluator (default: QualityEvaluator with TesseractTextExtractor)
             default_engine: Default engine to use (pymupdf)
         """
         # Default configuration
         self._file_storage = file_storage or LocalStorageAdapter()
         self._default_engine = default_engine
         self._pdf_processor = pdf_processor or self._create_processor(default_engine)
-        self._quality_evaluator = quality_evaluator or IndependentQualityEvaluator(self._file_storage)
+        self._quality_evaluator = quality_evaluator or QualityEvaluator(TesseractTextExtractor(self._file_storage))
         
         # Domain services
         self._obfuscation_service = DocumentObfuscationService()

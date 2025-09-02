@@ -20,10 +20,10 @@ dependencies = [
     "reportlab>=4.0.0",
     "pdfplumber>=0.10.0",
     "pdf2image>=1.17.0",
-    "requests>=2.32.4",
     "poppler-utils>=0.1.0",
     "PyPDF2>=3.0.0",
     "pytesseract>=0.3.10",
+    "mistralai>=0.4.3",
 ]
 
 [project.optional-dependencies]

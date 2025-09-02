@@ -305,6 +305,38 @@ class NewStorageAdapter(FileStoragePort):
 
 The quality evaluation system is designed to avoid bias by using different libraries than the obfuscation engines:
 
-- **IndependentQualityEvaluator**: Uses PyPDF2 and pdf2image instead of pymupdf/pdfplumber
+- **IndependentQualityEvaluator**: Uses Tesseract OCR with pdf2image instead of pymupdf/pdfplumber
+- **MistralQualityEvaluator**: Uses Mistral AI OCR for enhanced accuracy
 - **QualityEvaluationService**: Contains business rules for quality assessment
 - **EvaluateObfuscationQualityUseCase**: Orchestrates the evaluation process
+
+#### Using Mistral AI OCR
+
+For enhanced OCR accuracy, you can use the Mistral AI OCR evaluator:
+
+```python
+from src.adapters.mistral_quality_evaluator import MistralQualityEvaluator
+from src.application.pdf_obfuscation_app import PdfObfuscationApplication
+
+# Create Mistral evaluator
+mistral_evaluator = MistralQualityEvaluator(
+    file_storage=file_storage,
+    mistral_api_key="your-api-key"  # or use MISTRAL_API_KEY env var
+)
+
+# Use in application
+app = PdfObfuscationApplication(
+    quality_evaluator=mistral_evaluator
+)
+```
+
+**Test Mistral OCR:**
+```bash
+export MISTRAL_API_KEY="your-api-key"
+./test_mistral_ocr.sh
+```
+
+**Comparison with Tesseract:**
+```bash
+./test_mistral_ocr.sh --debug
+```

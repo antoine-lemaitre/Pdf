@@ -42,6 +42,7 @@ def main():
     cli_parser.add_argument("--validate", action="store_true", help="Validate document only")
     cli_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose mode")
     cli_parser.add_argument("--evaluate-quality", action="store_true", help="Evaluate quality after obfuscation or evaluate quality of existing obfuscated document")
+    cli_parser.add_argument("--evaluator", choices=["tesseract", "mistral"], default="tesseract", help="Quality evaluator to use (default: tesseract)")
     
     args = parser.parse_args()
     

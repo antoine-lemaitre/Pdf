@@ -56,6 +56,13 @@ Examples:
     )
     
     parser.add_argument(
+        "--evaluator",
+        choices=["tesseract", "mistral"],
+        default="tesseract",
+        help="Quality evaluator to use (default: tesseract)"
+    )
+    
+    parser.add_argument(
         "--evaluate-quality",
         action="store_true",
         help="Evaluate quality after obfuscation or evaluate quality of existing obfuscated document"
@@ -88,8 +95,32 @@ Examples:
     
     args = parser.parse_args()
     
-    # Initialize application
-    app = PdfObfuscationApplication()
+    # Initialize application with chosen evaluator
+    if args.evaluator == "mistral":
+        from src.adapters.mistral_text_extractor import MistralTextExtractor
+        from src.adapters.quality_evaluator import QualityEvaluator
+        from src.adapters.local_storage_adapter import LocalStorageAdapter
+        
+        file_storage = LocalStorageAdapter()
+        mistral_extractor = MistralTextExtractor(file_storage)
+        mistral_evaluator = QualityEvaluator(mistral_extractor)
+        app = PdfObfuscationApplication(
+            file_storage=file_storage,
+            quality_evaluator=mistral_evaluator
+        )
+    else:
+        # Default Tesseract evaluator
+        from src.adapters.tesseract_text_extractor import TesseractTextExtractor
+        from src.adapters.quality_evaluator import QualityEvaluator
+        from src.adapters.local_storage_adapter import LocalStorageAdapter
+        
+        file_storage = LocalStorageAdapter()
+        tesseract_extractor = TesseractTextExtractor(file_storage)
+        tesseract_evaluator = QualityEvaluator(tesseract_extractor)
+        app = PdfObfuscationApplication(
+            file_storage=file_storage,
+            quality_evaluator=tesseract_evaluator
+        )
     
     try:
         # Command to list engines

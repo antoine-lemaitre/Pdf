@@ -93,6 +93,16 @@ class TermResult:
 
 
 @dataclass(frozen=True)
+class TextExtractionResult:
+    """Result of text extraction from a PDF."""
+    text: str
+    page_count: int
+    word_count: int
+    pages: List[str]
+    execution_time: float = 0.0
+
+
+@dataclass(frozen=True)
 class Document:
     """A document to be processed."""
     path: str
