@@ -111,8 +111,44 @@ class MistralTextExtractor(TextExtractorPort):
                         pages.append(page_text)
             
             # Store quality annotation for later use
-            if hasattr(response, 'document_annotation'):
+            if hasattr(response, 'document_annotation') and response.document_annotation:
+                # Document Annotations mode was used
                 self._last_quality_annotation = response.document_annotation
+                # Add processing mode information
+                if hasattr(self._last_quality_annotation, 'processing_mode'):
+                    # Only assign if it's a Pydantic model, not a string
+                    if not isinstance(self._last_quality_annotation, str):
+                        self._last_quality_annotation.processing_mode = "document_annotations"
+                else:
+                    # Create a new annotation with mode info if not present
+                    if isinstance(self._last_quality_annotation, dict):
+                        self._last_quality_annotation['processing_mode'] = "document_annotations"
+                    else:
+                        # For Pydantic models, we need to create a new one
+                        if hasattr(self._last_quality_annotation, 'model_dump'):
+                            annotation_dict = self._last_quality_annotation.model_dump()
+                            annotation_dict['processing_mode'] = "document_annotations"
+                            self._last_quality_annotation = DocumentQualityAnnotation(**annotation_dict)
+            else:
+                # Fallback OCR mode was used
+                # Create a minimal annotation with fallback info
+                self._last_quality_annotation = DocumentQualityAnnotation(
+                    processing_mode="fallback_ocr",
+                    quality_metrics=QualityMetrics(
+                        total_words=len(extracted_text.split()),
+                        unique_words=len(set(extracted_text.split())),
+                        document_type="unknown",
+                        language="unknown"
+                    ),
+                    obfuscation_analysis=ObfuscationAnalysis(
+                        preserved_words_count=len(extracted_text.split()),
+                        missing_words_count=0,
+                        precision_score=1.0,
+                        obfuscation_effectiveness="Fallback OCR mode - limited analysis"
+                    ),
+                    summary="Text extracted using fallback OCR mode",
+                    confidence_score=0.5
+                )
             
             return extracted_text, page_count, pages
             

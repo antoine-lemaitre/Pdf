@@ -25,6 +25,7 @@ class ObfuscationAnalysis(BaseModel):
 
 class DocumentQualityAnnotation(BaseModel):
     """Complete document quality evaluation annotation."""
+    processing_mode: str = Field(..., description="Mode used: 'document_annotations' or 'fallback_ocr'")
     quality_metrics: QualityMetrics = Field(..., description="Basic quality metrics of the document")
     obfuscation_analysis: ObfuscationAnalysis = Field(..., description="Analysis of obfuscation quality")
     summary: str = Field(..., description="Overall summary of document quality and obfuscation effectiveness")

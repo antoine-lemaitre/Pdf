@@ -96,12 +96,16 @@ Examples:
     args = parser.parse_args()
     
     # Initialize application with chosen evaluator
+    from src.adapters.local_storage_adapter import LocalStorageAdapter
+    from src.domain.services.configuration_service import ConfigurationService
+    
+    file_storage = LocalStorageAdapter()
+    config_service = ConfigurationService()
+    
     if args.evaluator == "mistral":
         from src.adapters.mistral_text_extractor import MistralTextExtractor
         from src.adapters.quality_evaluator import QualityEvaluator
-        from src.adapters.local_storage_adapter import LocalStorageAdapter
         
-        file_storage = LocalStorageAdapter()
         mistral_extractor = MistralTextExtractor(file_storage)
         mistral_evaluator = QualityEvaluator(mistral_extractor)
         app = PdfObfuscationApplication(
@@ -112,9 +116,7 @@ Examples:
         # Default Tesseract evaluator
         from src.adapters.tesseract_text_extractor import TesseractTextExtractor
         from src.adapters.quality_evaluator import QualityEvaluator
-        from src.adapters.local_storage_adapter import LocalStorageAdapter
         
-        file_storage = LocalStorageAdapter()
         tesseract_extractor = TesseractTextExtractor(file_storage)
         tesseract_evaluator = QualityEvaluator(tesseract_extractor)
         app = PdfObfuscationApplication(

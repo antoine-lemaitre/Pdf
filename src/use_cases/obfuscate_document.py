@@ -58,11 +58,10 @@ class ObfuscateDocumentUseCase:
                 if destination_path:
                     output_path = destination_path
                 else:
-                    # Default to data/output/ if no destination specified
-                    if 'data/input/' in document_path:
-                        output_path = document_path.replace('data/input/', 'data/output/').replace('.pdf', '_obfuscated.pdf')
-                    else:
-                        output_path = document_path.replace('.pdf', '_obfuscated.pdf')
+                    # Use configuration service for default path
+                    from src.domain.services.configuration_service import ConfigurationService
+                    config_service = ConfigurationService()
+                    output_path = config_service.get_default_output_path(document_path)
                 self._file_storage.write_file(output_path, obfuscated_content)
                 output_document = Document(path=output_path)
                 

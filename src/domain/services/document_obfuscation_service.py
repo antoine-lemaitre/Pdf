@@ -5,12 +5,12 @@ Pure business logic without external dependencies.
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from .entities import (
+from ..entities import (
     Term, TermResult, TermOccurrence, ProcessingStatus,
     ObfuscationRequest, ObfuscationResult, Document,
     QualityMetrics, QualityReport
 )
-from .exceptions import ObfuscationError
+from ..exceptions import ObfuscationError
 
 
 class DocumentObfuscationService:

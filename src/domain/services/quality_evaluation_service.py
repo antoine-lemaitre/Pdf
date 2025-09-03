@@ -3,10 +3,10 @@ Service for evaluating obfuscation quality.
 """
 import re
 from typing import Dict, Any, List, Optional
-from ..domain.entities import Document, TextExtractionResult
-from ..ports.text_extractor_port import TextExtractorPort
-from ..domain.exceptions import DocumentProcessingError
-from ..domain.quality_annotation_schema import DocumentQualityAnnotation
+from ..entities import Document, TextExtractionResult
+from ...ports.text_extractor_port import TextExtractorPort
+from ..exceptions import DocumentProcessingError
+from ..quality_annotation_schema import DocumentQualityAnnotation
 
 
 class QualityEvaluationService:
@@ -20,6 +20,38 @@ class QualityEvaluationService:
             text_extractor: Text extractor to use for OCR
         """
         self._text_extractor = text_extractor
+    
+    def calculate_overall_score(
+        self, 
+        completeness_score: float, 
+        precision_score: float, 
+        visual_integrity_score: float
+    ) -> float:
+        """
+        Calculate overall quality score from individual metrics.
+        
+        Args:
+            completeness_score: Score for completeness (0.0 to 1.0)
+            precision_score: Score for precision (0.0 to 1.0)
+            visual_integrity_score: Score for visual integrity (0.0 to 1.0)
+            
+        Returns:
+            Overall score (0.0 to 1.0)
+        """
+        # Business rule: Completeness is most important (40%), then precision (35%), then visual integrity (25%)
+        weights = {
+            'completeness': 0.4,
+            'precision': 0.35,
+            'visual_integrity': 0.25
+        }
+        
+        overall_score = (
+            completeness_score * weights['completeness'] +
+            precision_score * weights['precision'] +
+            visual_integrity_score * weights['visual_integrity']
+        )
+        
+        return round(overall_score, 3)
     
     def evaluate_completeness(
         self, 
@@ -93,8 +125,6 @@ class QualityEvaluationService:
             original_words = [word for word in original_words if word]
             obfuscated_words = [word for word in obfuscated_words if word]
             
-
-            
             # Sort both lists alphabetically to handle OCR differences
             original_words.sort()
             obfuscated_words.sort()
@@ -109,8 +139,6 @@ class QualityEvaluationService:
             
             # Missing words are those that remain (not found in original)
             missing_words = remaining_words
-            
-
             
             # Filter out intentionally obfuscated terms from false positives
             target_terms_lower = [term.lower() for term in terms_to_obfuscate]
@@ -167,20 +195,30 @@ class QualityEvaluationService:
             else:
                 annotation_dict = quality_annotation
             
+            # Safely extract values with fallbacks
+            obfuscation_analysis = annotation_dict.get("obfuscation_analysis", {})
+            quality_metrics = annotation_dict.get("quality_metrics", {})
+            
+            precision_score = obfuscation_analysis.get("precision_score", 0.0)
+            missing_words_count = obfuscation_analysis.get("missing_words_count", 0)
+            preserved_words_count = obfuscation_analysis.get("preserved_words_count", 0)
+            total_words = quality_metrics.get("total_words", 0)
+            
             return {
-                "score": annotation_dict["obfuscation_analysis"]["precision_score"],
-                "total_disappeared_terms": annotation_dict["obfuscation_analysis"]["missing_words_count"],
+                "score": precision_score,
+                "total_disappeared_terms": missing_words_count,
                 "false_positive_count": 0,  # Not provided by annotations
-                "total_original_words": annotation_dict["quality_metrics"]["total_words"],
-                "words_found": annotation_dict["obfuscation_analysis"]["preserved_words_count"],
+                "total_original_words": total_words,
+                "words_found": preserved_words_count,
                 "details": {
-                    "total_original_words": annotation_dict["quality_metrics"]["total_words"],
-                    "original_word_count": annotation_dict["quality_metrics"]["total_words"],
-                    "obfuscated_word_count": annotation_dict["quality_metrics"]["total_words"] - annotation_dict["obfuscation_analysis"]["missing_words_count"],
-                    "words_found": annotation_dict["obfuscation_analysis"]["preserved_words_count"],
+                    "total_original_words": total_words,
+                    "original_word_count": total_words,
+                    "obfuscated_word_count": total_words - missing_words_count,
+                    "words_found": preserved_words_count,
                     "false_positives": [],
                     "intentionally_obfuscated_count": 0,
-                    "extractor_annotation": annotation_dict
+                    "extractor_annotation": annotation_dict,
+                    "mistral_processing_mode": annotation_dict.get("processing_mode", "unknown")
                 }
             }
             
@@ -222,3 +260,66 @@ class QualityEvaluationService:
                 found_terms.append(term)
         
         return found_terms
+    
+    def create_quality_report(
+        self,
+        original_document_path: str,
+        obfuscated_document_path: str,
+        terms_to_obfuscate: List[str],
+        engine_used: str,
+        completeness_score: float,
+        precision_score: float,
+        visual_integrity_score: float,
+        details: Dict[str, Any]
+    ) -> "QualityReport":
+        """
+        Create a complete quality report.
+        
+        Args:
+            original_document_path: Path to original document
+            obfuscated_document_path: Path to obfuscated document
+            terms_to_obfuscate: List of terms that should have been obfuscated
+            engine_used: The obfuscation engine used
+            completeness_score: Completeness score
+            precision_score: Precision score
+            visual_integrity_score: Visual integrity score
+            details: Additional details for each metric
+            
+        Returns:
+            Complete quality report
+        """
+        from datetime import datetime
+        from ..entities import QualityReport, QualityMetrics
+        
+        overall_score = self.calculate_overall_score(completeness_score, precision_score, visual_integrity_score)
+        
+        # Extract detailed term information from completeness and precision details
+        non_obfuscated_terms = []
+        false_positive_terms = []
+        
+        # Extract non-obfuscated terms from completeness details
+        if 'completeness' in details and 'remaining_terms' in details['completeness']:
+            non_obfuscated_terms = details['completeness']['remaining_terms']
+        
+        # Extract false positive terms from precision details
+        if 'precision' in details and 'false_positives' in details['precision']:
+            false_positive_terms = details['precision']['false_positives']
+        
+        metrics = QualityMetrics(
+            completeness_score=completeness_score,
+            precision_score=precision_score,
+            visual_integrity_score=visual_integrity_score,
+            overall_score=overall_score,
+            details=details,
+            non_obfuscated_terms=non_obfuscated_terms,
+            false_positive_terms=false_positive_terms
+        )
+        
+        return QualityReport(
+            original_document_path=original_document_path,
+            obfuscated_document_path=obfuscated_document_path,
+            terms_to_obfuscate=terms_to_obfuscate,
+            engine_used=engine_used,
+            metrics=metrics,
+            timestamp=datetime.now().isoformat()
+        )

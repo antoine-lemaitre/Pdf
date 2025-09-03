@@ -6,7 +6,7 @@ from typing import List, Dict, Any
 from ..ports.quality_evaluator_port import QualityEvaluatorPort
 from ..ports.text_extractor_port import TextExtractorPort
 from ..domain.entities import Document
-from ..domain.quality_evaluation_service import QualityEvaluationService
+from ..domain.services.quality_evaluation_service import QualityEvaluationService
 
 
 class QualityEvaluator(QualityEvaluatorPort):

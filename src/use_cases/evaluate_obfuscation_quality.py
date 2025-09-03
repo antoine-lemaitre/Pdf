@@ -4,7 +4,7 @@ Use case for evaluating obfuscation quality.
 from typing import List
 
 from src.domain.entities import Document, QualityReport
-from src.domain.services import QualityEvaluationService
+from src.domain.services.document_obfuscation_service import DocumentObfuscationService
 from src.ports.quality_evaluator_port import QualityEvaluatorPort
 from src.ports.file_storage_port import FileStoragePort
 from src.domain.exceptions import DocumentProcessingError
@@ -17,7 +17,7 @@ class EvaluateObfuscationQualityUseCase:
         self,
         quality_evaluator: QualityEvaluatorPort,
         file_storage: FileStoragePort,
-        quality_service: QualityEvaluationService
+        quality_service: DocumentObfuscationService
     ):
         self._quality_evaluator = quality_evaluator
         self._file_storage = file_storage
