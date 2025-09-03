@@ -2,10 +2,11 @@
 Service for evaluating obfuscation quality.
 """
 import re
-from typing import Dict, Any, List
-from src.domain.entities import Document, TextExtractionResult
-from src.ports.text_extractor_port import TextExtractorPort
-from src.domain.exceptions import DocumentProcessingError
+from typing import Dict, Any, List, Optional
+from ..domain.entities import Document, TextExtractionResult
+from ..ports.text_extractor_port import TextExtractorPort
+from ..domain.exceptions import DocumentProcessingError
+from ..domain.quality_annotation_schema import DocumentQualityAnnotation
 
 
 class QualityEvaluationService:
@@ -53,7 +54,9 @@ class QualityEvaluationService:
                     "original_terms": original_terms,
                     "obfuscated_terms": obfuscated_terms,
                     "original_word_count": original_extraction.word_count,
-                    "obfuscated_word_count": obfuscated_extraction.word_count
+                    "obfuscated_word_count": obfuscated_extraction.word_count,
+                    "original_ocr_time": f"{original_extraction.execution_time:.3f}s",
+                    "obfuscated_ocr_time": f"{obfuscated_extraction.execution_time:.3f}s"
                 }
             }
         except Exception as e:
@@ -79,32 +82,35 @@ class QualityEvaluationService:
             original_text = original_extraction.text
             obfuscated_text = obfuscated_extraction.text
             
-            # Split texts into words
-            original_words = re.findall(r'\b\w+\b', original_text.lower())
-            obfuscated_words = re.findall(r'\b\w+\b', obfuscated_text.lower())
+            # Split texts into words and clean punctuation
+            original_words_raw = original_text.lower().split()
+            obfuscated_words_raw = obfuscated_text.lower().split()
+            
+            original_words = [word.strip('.,;:!?()[]{}\'"-') for word in original_words_raw]
+            obfuscated_words = [word.strip('.,;:!?()[]{}\'"-') for word in obfuscated_words_raw]
+            
+            # Remove empty words after cleaning
+            original_words = [word for word in original_words if word]
+            obfuscated_words = [word for word in obfuscated_words if word]
+            
+
             
             # Sort both lists alphabetically to handle OCR differences
             original_words.sort()
             obfuscated_words.sort()
             
-            # Track missing words and current search position
-            missing_words = []
-            current_search_position = 0
+            # Simple approach: remove found words from obfuscated list
+            remaining_words = obfuscated_words.copy()
             
-            # Check each word from original in order
-            for original_word in original_words:
-                word_found = False
-                
-                # Search for the word starting from current position
-                for i in range(current_search_position, len(obfuscated_words)):
-                    if obfuscated_words[i] == original_word:
-                        word_found = True
-                        current_search_position = i + 1
-                        break
-                
-                # If word not found, add to missing words list
-                if not word_found:
-                    missing_words.append(original_word)
+            # For each original word, remove it from remaining words
+            for word in original_words:
+                if word in remaining_words:
+                    remaining_words.remove(word)
+            
+            # Missing words are those that remain (not found in original)
+            missing_words = remaining_words
+            
+
             
             # Filter out intentionally obfuscated terms from false positives
             target_terms_lower = [term.lower() for term in terms_to_obfuscate]
@@ -133,6 +139,8 @@ class QualityEvaluationService:
                 "score": round(precision_score, 3),
                 "total_disappeared_terms": len(missing_words),
                 "false_positive_count": len(true_false_positives),
+                "total_original_words": total_original_words,
+                "words_found": words_found,
                 "details": {
                     "total_original_words": total_original_words,
                     "original_word_count": original_extraction.word_count,
@@ -145,6 +153,41 @@ class QualityEvaluationService:
             
         except Exception as e:
             raise DocumentProcessingError(f"Error evaluating precision: {str(e)}")
+    
+    def evaluate_with_annotations(self, text_extractor: TextExtractorPort) -> Optional[Dict[str, Any]]:
+        """Evaluate quality using extractor annotations if available."""
+        try:
+            quality_annotation = text_extractor.get_quality_annotation()
+            if not quality_annotation:
+                return None
+            
+            # Handle both Pydantic models and dict annotations
+            if hasattr(quality_annotation, 'model_dump'):
+                annotation_dict = quality_annotation.model_dump()
+            else:
+                annotation_dict = quality_annotation
+            
+            return {
+                "score": annotation_dict["obfuscation_analysis"]["precision_score"],
+                "total_disappeared_terms": annotation_dict["obfuscation_analysis"]["missing_words_count"],
+                "false_positive_count": 0,  # Not provided by annotations
+                "total_original_words": annotation_dict["quality_metrics"]["total_words"],
+                "words_found": annotation_dict["obfuscation_analysis"]["preserved_words_count"],
+                "details": {
+                    "total_original_words": annotation_dict["quality_metrics"]["total_words"],
+                    "original_word_count": annotation_dict["quality_metrics"]["total_words"],
+                    "obfuscated_word_count": annotation_dict["quality_metrics"]["total_words"] - annotation_dict["obfuscation_analysis"]["missing_words_count"],
+                    "words_found": annotation_dict["obfuscation_analysis"]["preserved_words_count"],
+                    "false_positives": [],
+                    "intentionally_obfuscated_count": 0,
+                    "extractor_annotation": annotation_dict
+                }
+            }
+            
+        except Exception as e:
+            # Fallback to manual evaluation if annotations fail
+            return None    
+
     
     def evaluate_visual_integrity(
         self, 

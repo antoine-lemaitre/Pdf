@@ -22,6 +22,7 @@ class QualityEvaluator(QualityEvaluatorPort):
         Args:
             text_extractor: Text extractor to use for OCR
         """
+        self._text_extractor = text_extractor
         self._quality_service = QualityEvaluationService(text_extractor)
     
     def evaluate_completeness(
@@ -40,6 +41,13 @@ class QualityEvaluator(QualityEvaluatorPort):
         terms_to_obfuscate: List[str]
     ) -> Dict[str, Any]:
         """Evaluate if only target terms were obfuscated (no false positives)."""
+        # Try to use extractor annotations if available
+        # Use our own text_extractor which has the annotations
+        annotation_result = self._quality_service.evaluate_with_annotations(self._text_extractor)
+        if annotation_result:
+            return annotation_result
+        
+        # Fallback to manual evaluation
         return self._quality_service.evaluate_precision(original_document, obfuscated_document, terms_to_obfuscate)
     
     def evaluate_visual_integrity(
