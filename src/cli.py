@@ -101,6 +101,11 @@ Examples:
     # Create dependency container
     container = DependencyContainer()
     
+    # Configure container with chosen evaluator
+    if args.evaluator == "mistral":
+        # Pre-configure container to use Mistral evaluator
+        container.get_quality_evaluator("mistral")
+    
     # Create application with the container
     app = PdfObfuscationApplication(dependency_container=container)
     
@@ -154,7 +159,8 @@ Examples:
             result = app.evaluate_quality(
                 original_document_path=args.document,
                 obfuscated_document_path=args.obfuscated_document,
-                terms_to_obfuscate=args.terms
+                terms_to_obfuscate=args.terms,
+                evaluator_type=args.evaluator
             )
             
             # Display quality evaluation results

@@ -139,7 +139,8 @@ class PdfObfuscationApplication:
         original_document_path: str,
         obfuscated_document_path: str,
         terms_to_obfuscate: List[str],
-        engine_used: str = "unknown"
+        engine_used: str = "unknown",
+        evaluator_type: str = "tesseract"
     ) -> QualityReport:
         """
         Evaluate the quality of obfuscation for a given document.
@@ -149,13 +150,14 @@ class PdfObfuscationApplication:
             obfuscated_document_path: Path to the obfuscated PDF
             terms_to_obfuscate: List of terms that should have been obfuscated
             engine_used: The obfuscation engine that was used
+            evaluator_type: Type of evaluator to use (tesseract or mistral)
             
         Returns:
             QualityReport: Complete quality evaluation report
         """
         try:
             # Get quality evaluator and file storage from container
-            quality_evaluator = self._dependency_container.get_quality_evaluator("tesseract")  # Default to tesseract
+            quality_evaluator = self._dependency_container.get_quality_evaluator(evaluator_type)
             file_storage = self._dependency_container.get_file_storage()
             
             # Create use case with the quality evaluation service
