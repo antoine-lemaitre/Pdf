@@ -2,13 +2,10 @@
 Factory for creating PDF processors.
 Implements the PdfProcessorFactoryPort to create concrete PDF processors.
 """
-from typing import Dict, Any
+from typing import Dict, Any, Type
 from ..ports.pdf_processor_factory_port import PdfProcessorFactoryPort
 from ..ports.pdf_processor_port import PdfProcessorPort
 from ..ports.file_storage_port import FileStoragePort
-from .pymupdf_adapter import PyMuPdfAdapter
-from .pypdfium2_adapter import PyPdfium2Adapter
-from .pdfplumber_adapter import PdfPlumberAdapter
 from ..domain.exceptions import ObfuscationError
 
 
@@ -57,11 +54,15 @@ class PdfProcessorFactory(PdfProcessorFactoryPort):
             raise ObfuscationError(f"Engine '{engine}' not supported. Available engines: {supported}")
         
         try:
+            # Dynamic import to avoid circular dependencies and respect architecture
             if engine == "pymupdf":
+                from .pymupdf_adapter import PyMuPdfAdapter
                 return PyMuPdfAdapter(file_storage)
             elif engine == "pypdfium2":
+                from .pypdfium2_adapter import PyPdfium2Adapter
                 return PyPdfium2Adapter(file_storage)
             elif engine == "pdfplumber":
+                from .pdfplumber_adapter import PdfPlumberAdapter
                 return PdfPlumberAdapter(file_storage)
             else:
                 raise ObfuscationError(f"Unknown engine: {engine}")
@@ -90,3 +91,28 @@ class PdfProcessorFactory(PdfProcessorFactoryPort):
             raise ObfuscationError(f"Engine '{engine}' not supported. Available engines: {supported}")
         
         return self._supported_engines[engine].copy()
+    
+    def register_engine(self, engine_name: str, engine_info: Dict[str, Any]) -> None:
+        """
+        Register a new engine with the factory.
+        
+        Args:
+            engine_name: Name of the engine to register
+            engine_info: Engine information dictionary
+        """
+        self._supported_engines[engine_name] = engine_info.copy()
+    
+    def unregister_engine(self, engine_name: str) -> bool:
+        """
+        Unregister an engine from the factory.
+        
+        Args:
+            engine_name: Name of the engine to unregister
+            
+        Returns:
+            True if engine was unregistered, False if it wasn't found
+        """
+        if engine_name in self._supported_engines:
+            del self._supported_engines[engine_name]
+            return True
+        return False

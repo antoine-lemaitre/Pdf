@@ -37,3 +37,13 @@ class PdfProcessorFactoryPort(ABC):
     def get_engine_info(self, engine: str) -> Dict[str, Any]:
         """Get information about a specific engine."""
         pass
+    
+    @abstractmethod
+    def register_engine(self, engine_name: str, engine_info: Dict[str, Any]) -> None:
+        """Register a new engine with the factory."""
+        pass
+    
+    @abstractmethod
+    def unregister_engine(self, engine_name: str) -> bool:
+        """Unregister an engine from the factory."""
+        pass
