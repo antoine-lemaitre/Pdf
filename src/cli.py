@@ -95,34 +95,14 @@ Examples:
     
     args = parser.parse_args()
     
-    # Initialize application with chosen evaluator
-    from src.adapters.local_storage_adapter import LocalStorageAdapter
-    from src.domain.services.configuration_service import ConfigurationService
+    # Initialize application with dependency container
+    from src.application.dependency_container import DependencyContainer
     
-    file_storage = LocalStorageAdapter()
-    config_service = ConfigurationService()
+    # Create dependency container
+    container = DependencyContainer()
     
-    if args.evaluator == "mistral":
-        from src.adapters.mistral_text_extractor import MistralTextExtractor
-        from src.adapters.quality_evaluator import QualityEvaluator
-        
-        mistral_extractor = MistralTextExtractor(file_storage)
-        mistral_evaluator = QualityEvaluator(mistral_extractor)
-        app = PdfObfuscationApplication(
-            file_storage=file_storage,
-            quality_evaluator=mistral_evaluator
-        )
-    else:
-        # Default Tesseract evaluator
-        from src.adapters.tesseract_text_extractor import TesseractTextExtractor
-        from src.adapters.quality_evaluator import QualityEvaluator
-        
-        tesseract_extractor = TesseractTextExtractor(file_storage)
-        tesseract_evaluator = QualityEvaluator(tesseract_extractor)
-        app = PdfObfuscationApplication(
-            file_storage=file_storage,
-            quality_evaluator=tesseract_evaluator
-        )
+    # Create application with the container
+    app = PdfObfuscationApplication(dependency_container=container)
     
     try:
         # Command to list engines
