@@ -13,70 +13,12 @@ try:
 except ImportError:
     raise ImportError("FastAPI is required. Install with: pip install fastapi python-multipart")
 
-from src.application.pdf_obfuscation_app import PdfObfuscationApplication
-
-
-# Pydantic models for API
-class TermRequest(BaseModel):
-    """Term in request."""
-    text: str
-
-
-class ObfuscationRequest(BaseModel):
-    """Obfuscation request via JSON."""
-    source_path: str
-    terms: List[TermRequest]
-    destination_path: Optional[str] = None
-    engine: str = "pymupdf"
-    evaluate_quality: bool = False
-
-
-class QualityMetricsResponse(BaseModel):
-    """Quality metrics response."""
-    completeness_score: float
-    precision_score: float
-    visual_integrity_score: float
-    overall_score: float
-    non_obfuscated_terms: List[str] = []
-    false_positive_terms: List[str] = []
-    precision_details: Optional[Dict[str, Any]] = None
-
-
-class QualityEvaluationRequest(BaseModel):
-    """Quality evaluation request."""
-    original_document_path: str
-    obfuscated_document_path: str
-    terms: List[TermRequest]
-    engine_used: str = "unknown"
-
-
-class QualityEvaluationResponse(BaseModel):
-    """Quality evaluation response."""
-    original_document_path: str
-    obfuscated_document_path: str
-    terms_to_obfuscate: List[str]
-    engine_used: str
-    metrics: QualityMetricsResponse
-    timestamp: str
-
-
-class TermResultResponse(BaseModel):
-    """Result for a specific term."""
-    term: str
-    status: str
-    occurrences_count: int
-    message: str
-
-
-class ObfuscationResponse(BaseModel):
-    """Obfuscation response."""
-    success: bool
-    message: str
-    output_document: Optional[str]
-    total_terms_processed: int
-    total_occurrences_obfuscated: int
-    term_results: List[TermResultResponse]
-    error: Optional[str] = None
+# Application will be injected via constructor to respect hexagonal architecture
+from ..domain.entities import (
+    TermRequest, ObfuscationRequest, QualityMetricsResponse, 
+    QualityEvaluationRequest, QualityEvaluationResponse, 
+    TermResultResponse, ObfuscationResponse
+)
 
 
 # FastAPI application configuration
@@ -86,8 +28,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Global application instance
-pdf_app = PdfObfuscationApplication()
+# Dependency injection for application
+from ..application.dependency_container import DependencyContainer
+
+# Global dependency container
+container = DependencyContainer()
 
 
 @app.get("/health")
@@ -99,7 +44,8 @@ async def health_check():
 @app.get("/engines")
 async def get_engines():
     """Get available obfuscation engines."""
-    engines = pdf_app.get_supported_engines()
+    app = container.get_application()
+    engines = app.get_supported_engines()
     return {
         "available_engines": [{"name": e} for e in engines],
         "count": len(engines)
@@ -122,7 +68,8 @@ async def obfuscate_document(request: ObfuscationRequest):
     terms = [term.text for term in request.terms]
     
     # Execute obfuscation
-    result = pdf_app.obfuscate_document(
+    app = container.get_application()
+    result = app.obfuscate_document(
         source_path=request.source_path,
         terms=terms,
         destination_path=request.destination_path,
@@ -158,11 +105,13 @@ async def evaluate_quality(request: QualityEvaluationRequest):
     terms = [term.text for term in request.terms]
     
     # Execute quality evaluation
-    quality_report = pdf_app.evaluate_quality(
+    app = container.get_application()
+    quality_report = app.evaluate_quality(
         original_document_path=request.original_document_path,
         obfuscated_document_path=request.obfuscated_document_path,
         terms_to_obfuscate=terms,
-        engine_used=request.engine_used
+        engine_used=request.engine_used,
+        evaluator_type=request.evaluator_type
     )
     
     # Extract precision details from the quality report
@@ -205,7 +154,7 @@ def _convert_result_to_response(result) -> ObfuscationResponse:
     
     return ObfuscationResponse(
         success=result.success,
-        message=result.message,
+        message=getattr(result, 'message', 'Processing completed'),
         output_document=result.output_document.path if result.output_document else None,
         total_terms_processed=result.total_terms_processed,
         total_occurrences_obfuscated=result.total_occurrences_obfuscated,

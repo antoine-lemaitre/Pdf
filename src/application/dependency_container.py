@@ -88,3 +88,11 @@ class DependencyContainer:
         self._text_extractor = None
         self._obfuscation_service = None
         self._error_handler = None
+        self._application = None
+    
+    def get_application(self):
+        """Get or create the main application."""
+        if self._application is None:
+            from .pdf_obfuscation_app import PdfObfuscationApplication
+            self._application = PdfObfuscationApplication(self)
+        return self._application

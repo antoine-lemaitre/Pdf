@@ -16,4 +16,4 @@ data/
 # testing script
 test*.sh
 Pdf.code-workspace
-.DS_Store
+.cursor/rules/*

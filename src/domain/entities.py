@@ -5,6 +5,7 @@ Pure business objects with no external dependencies.
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 from enum import Enum
+from pydantic import BaseModel
 
 
 class ProcessingStatus(Enum):
@@ -148,4 +149,65 @@ class ObfuscationResult:
     @property
     def successfully_processed_terms(self) -> List[TermResult]:
         """Terms that were successfully processed."""
-        return [result for result in self.term_results if result.was_found] 
+        return [result for result in self.term_results if result.was_found]
+
+
+# API Models for FastAPI
+class TermRequest(BaseModel):
+    """Term in request."""
+    text: str
+
+
+class ObfuscationRequest(BaseModel):
+    """Obfuscation request via JSON."""
+    source_path: str
+    terms: List[TermRequest]
+    destination_path: Optional[str] = None
+    engine: str = "pymupdf"
+    evaluate_quality: bool = False
+
+
+class QualityMetricsResponse(BaseModel):
+    """Quality metrics response."""
+    completeness_score: float
+    precision_score: float
+    visual_integrity_score: float
+    overall_score: float
+    non_obfuscated_terms: List[str] = []
+    false_positive_terms: List[str] = []
+    precision_details: Optional[Dict[str, Any]] = None
+
+
+class QualityEvaluationRequest(BaseModel):
+    """Quality evaluation request."""
+    original_document_path: str
+    obfuscated_document_path: str
+    terms: List[TermRequest]
+    engine_used: str = "unknown"
+    evaluator_type: str = "tesseract"
+
+
+class QualityEvaluationResponse(BaseModel):
+    """Quality evaluation response."""
+    success: bool
+    metrics: Optional[QualityMetricsResponse] = None
+    error: Optional[str] = None
+
+
+class TermResultResponse(BaseModel):
+    """Term result response."""
+    term: str
+    status: str
+    occurrences_count: int
+    message: str
+
+
+class ObfuscationResponse(BaseModel):
+    """Obfuscation response."""
+    success: bool
+    message: str
+    output_document: Optional[str] = None
+    total_terms_processed: int = 0
+    total_occurrences_obfuscated: int = 0
+    term_results: List[TermResultResponse] = []
+    error: Optional[str] = None 
