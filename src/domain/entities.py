@@ -158,7 +158,7 @@ class TermRequest(BaseModel):
     text: str
 
 
-class ObfuscationRequest(BaseModel):
+class ObfuscationRequestAPI(BaseModel):
     """Obfuscation request via JSON."""
     source_path: str
     terms: List[TermRequest]

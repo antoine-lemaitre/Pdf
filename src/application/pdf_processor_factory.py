@@ -1,6 +1,6 @@
 """
 Factory for creating PDF processors.
-Implements the PdfProcessorFactoryPort to create concrete PDF processors.
+Uses dependency injection to respect hexagonal architecture.
 """
 from typing import Dict, Any, Type
 from ..ports.pdf_processor_factory_port import PdfProcessorFactoryPort
@@ -10,10 +10,16 @@ from ..domain.exceptions import ObfuscationError
 
 
 class PdfProcessorFactory(PdfProcessorFactoryPort):
-    """Factory for creating PDF processors."""
+    """Factory for creating PDF processors using dependency injection."""
     
-    def __init__(self):
-        """Initialize the factory with supported engines."""
+    def __init__(self, processor_classes: Dict[str, Type[PdfProcessorPort]]):
+        """
+        Initialize the factory with processor classes.
+        
+        Args:
+            processor_classes: Dictionary mapping engine names to processor classes
+        """
+        self._processor_classes = processor_classes
         self._supported_engines = {
             "pymupdf": {
                 "name": "PyMuPDF",
@@ -53,19 +59,12 @@ class PdfProcessorFactory(PdfProcessorFactoryPort):
             supported = ", ".join(self._supported_engines.keys())
             raise ObfuscationError(f"Engine '{engine}' not supported. Available engines: {supported}")
         
+        if engine not in self._processor_classes:
+            raise ObfuscationError(f"No processor class registered for engine '{engine}'")
+        
         try:
-            # Dynamic import to avoid circular dependencies and respect architecture
-            if engine == "pymupdf":
-                from .pymupdf_adapter import PyMuPdfAdapter
-                return PyMuPdfAdapter(file_storage)
-            elif engine == "pypdfium2":
-                from .pypdfium2_adapter import PyPdfium2Adapter
-                return PyPdfium2Adapter(file_storage)
-            elif engine == "pdfplumber":
-                from .pdfplumber_adapter import PdfPlumberAdapter
-                return PdfPlumberAdapter(file_storage)
-            else:
-                raise ObfuscationError(f"Unknown engine: {engine}")
+            processor_class = self._processor_classes[engine]
+            return processor_class(file_storage)
         except Exception as e:
             raise ObfuscationError(f"Failed to create processor for engine '{engine}': {str(e)}")
     

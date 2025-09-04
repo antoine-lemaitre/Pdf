@@ -15,7 +15,7 @@ except ImportError:
 
 # Application will be injected via constructor to respect hexagonal architecture
 from ..domain.entities import (
-    TermRequest, ObfuscationRequest, QualityMetricsResponse, 
+    TermRequest, ObfuscationRequestAPI, QualityMetricsResponse, 
     QualityEvaluationRequest, QualityEvaluationResponse, 
     TermResultResponse, ObfuscationResponse
 )
@@ -53,7 +53,7 @@ async def get_engines():
 
 
 @app.post("/obfuscate", response_model=ObfuscationResponse)
-async def obfuscate_document(request: ObfuscationRequest):
+async def obfuscate_document(request: ObfuscationRequestAPI):
     """
     Obfuscate a PDF document via JSON request.
     
