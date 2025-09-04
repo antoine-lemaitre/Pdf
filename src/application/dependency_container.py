@@ -36,7 +36,7 @@ class DependencyContainer:
     def get_pdf_processor(self, engine: str = "pymupdf") -> PdfProcessorPort:
         """Get or create PDF processor for the specified engine."""
         if self._pdf_processor is None or engine != getattr(self._pdf_processor, '_current_engine', None):
-            from ..adapters.pdf_processor_factory import PdfProcessorFactory
+            from .pdf_processor_factory import PdfProcessorFactory
             factory = PdfProcessorFactory()
             self._pdf_processor = factory.create_processor(engine, self.get_file_storage())
             # Store current engine for future reference
