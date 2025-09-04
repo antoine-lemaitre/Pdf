@@ -15,25 +15,17 @@ def normalize_punctuation(text: str) -> str:
     # Process each character individually
     result = []
     for char in text:
-        if _is_latin_char(char):
-            # Normalize apostrophes and quotes only for Latin characters
-            char = char.replace('\u2019', "'").replace('\u2018', "'").replace('`', "'").replace('´', "'").replace('\u2019', "'")
-            char = char.replace('\u201c', '"').replace('\u201d', '"').replace('\u2018', "'").replace('\u2019', "'")
-            
-            # Apply accent normalization to Latin characters
-            normalized = unicodedata.normalize('NFD', char)
-            normalized = ''.join(c for c in normalized if unicodedata.category(c) != 'Mn')
-            result.append(normalized)
-        else:
-            # Keep non-Latin characters as-is (including their apostrophes and quotes)
-            result.append(char)
-    
+        # Normalize apostrophes and quotes only for Latin characters
+        char = char.replace('\u2019', "'").replace('\u2018', "'").replace('`', "'").replace('´', "'").replace('\u2019', "'")
+        char = char.replace('\u201c', '"').replace('\u201d', '"').replace('\u2018', "'").replace('\u2019', "'")
+        
+        # Apply accent normalization
+        normalized = unicodedata.normalize('NFD', char)
+        normalized = ''.join(c for c in normalized if unicodedata.category(c) != 'Mn')
+        result.append(normalized)
+
     return ''.join(result)
 
-
-def _is_latin_char(char: str) -> bool:
-    """Check if character is Latin (including accented Latin characters)."""
-    return unicodedata.name(char, '').startswith('LATIN')
 
 
 class QualityEvaluationService:
@@ -161,10 +153,6 @@ class QualityEvaluationService:
                 else:
                     remaining_words_original.append(word)
             
-            ## To clean later
-            print(f"🔍 DEBUG: remaining_words_obfuscated = {remaining_words_obfuscated}")
-            print(f"🔍 DEBUG: remaining_words_original = {remaining_words_original}")
-            
             # Missing words are those that remain (not found in original)
             missing_words = remaining_words_obfuscated
             
@@ -203,6 +191,7 @@ class QualityEvaluationService:
                     "obfuscated_word_count": obfuscated_extraction.word_count,
                     "words_found": words_found,
                     "false_positives": true_false_positives,
+                    "remaining_words_original": remaining_words_original,
                     "intentionally_obfuscated_count": len(missing_words) - len(true_false_positives)
                 }
             }
