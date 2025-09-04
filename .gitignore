@@ -17,3 +17,4 @@ data/
 test*.sh
 Pdf.code-workspace
 .cursor/rules/*
+AGENTS.md

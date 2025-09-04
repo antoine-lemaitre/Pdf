@@ -2,11 +2,38 @@
 Service for evaluating obfuscation quality.
 """
 import re
+import unicodedata
 from typing import Dict, Any, List, Optional
 from ..entities import Document, TextExtractionResult
 from ...ports.text_extractor_port import TextExtractorPort
 from ..exceptions import DocumentProcessingError
 from ..quality_annotation_schema import DocumentQualityAnnotation
+
+
+def normalize_punctuation(text: str) -> str:
+    """Normalize all types of apostrophes, quotes and accents to standard characters."""
+    # Process each character individually
+    result = []
+    for char in text:
+        if _is_latin_char(char):
+            # Normalize apostrophes and quotes only for Latin characters
+            char = char.replace('\u2019', "'").replace('\u2018', "'").replace('`', "'").replace('´', "'").replace('\u2019', "'")
+            char = char.replace('\u201c', '"').replace('\u201d', '"').replace('\u2018', "'").replace('\u2019', "'")
+            
+            # Apply accent normalization to Latin characters
+            normalized = unicodedata.normalize('NFD', char)
+            normalized = ''.join(c for c in normalized if unicodedata.category(c) != 'Mn')
+            result.append(normalized)
+        else:
+            # Keep non-Latin characters as-is (including their apostrophes and quotes)
+            result.append(char)
+    
+    return ''.join(result)
+
+
+def _is_latin_char(char: str) -> bool:
+    """Check if character is Latin (including accented Latin characters)."""
+    return unicodedata.name(char, '').startswith('LATIN')
 
 
 class QualityEvaluationService:
@@ -109,8 +136,6 @@ class QualityEvaluationService:
             # Extract text from both documents
             original_extraction = self._text_extractor.extract_text(original_document)
             obfuscated_extraction = self._text_extractor.extract_text(obfuscated_document)
-            
-            # Use the provided extractions
             original_text = original_extraction.text
             obfuscated_text = obfuscated_extraction.text
             
@@ -118,27 +143,30 @@ class QualityEvaluationService:
             original_words_raw = original_text.lower().split()
             obfuscated_words_raw = obfuscated_text.lower().split()
             
-            original_words = [word.strip('.,;:!?()[]{}\'"-') for word in original_words_raw]
-            obfuscated_words = [word.strip('.,;:!?()[]{}\'"-') for word in obfuscated_words_raw]
-            
-            # Remove empty words after cleaning
-            original_words = [word for word in original_words if word]
-            obfuscated_words = [word for word in obfuscated_words if word]
+            # Clean and normalize words
+            original_words = [normalize_punctuation(re.sub(r'^[^\w]+|[^\w]+$', '', word)) for word in original_words_raw if re.sub(r'^[^\w]+|[^\w]+$', '', word)]
+            obfuscated_words = [normalize_punctuation(re.sub(r'^[^\w]+|[^\w]+$', '', word)) for word in obfuscated_words_raw if re.sub(r'^[^\w]+|[^\w]+$', '', word)]
             
             # Sort both lists alphabetically to handle OCR differences
             original_words.sort()
             obfuscated_words.sort()
             
             # Simple approach: remove found words from obfuscated list
-            remaining_words = obfuscated_words.copy()
-            
+            remaining_words_obfuscated = obfuscated_words.copy()
+            remaining_words_original = []
             # For each original word, remove it from remaining words
             for word in original_words:
-                if word in remaining_words:
-                    remaining_words.remove(word)
+                if word in remaining_words_obfuscated:
+                    remaining_words_obfuscated.remove(word)
+                else:
+                    remaining_words_original.append(word)
+            
+            ## To clean later
+            print(f"🔍 DEBUG: remaining_words_obfuscated = {remaining_words_obfuscated}")
+            print(f"🔍 DEBUG: remaining_words_original = {remaining_words_original}")
             
             # Missing words are those that remain (not found in original)
-            missing_words = remaining_words
+            missing_words = remaining_words_obfuscated
             
             # Filter out intentionally obfuscated terms from false positives
             target_terms_lower = [term.lower() for term in terms_to_obfuscate]
