@@ -154,7 +154,7 @@ class QualityEvaluationService:
                     remaining_words_original.append(word)
             
             # Missing words are those that remain (not found in original)
-            missing_words = remaining_words_obfuscated
+            missing_words = remaining_words_original
             
             # Filter out intentionally obfuscated terms from false positives
             target_terms_lower = [term.lower() for term in terms_to_obfuscate]
@@ -191,7 +191,7 @@ class QualityEvaluationService:
                     "obfuscated_word_count": obfuscated_extraction.word_count,
                     "words_found": words_found,
                     "false_positives": true_false_positives,
-                    "remaining_words_original": remaining_words_original,
+                    "remaining_words_obfuscated": remaining_words_obfuscated,
                     "intentionally_obfuscated_count": len(missing_words) - len(true_false_positives)
                 }
             }
@@ -199,49 +199,7 @@ class QualityEvaluationService:
         except Exception as e:
             raise DocumentProcessingError(f"Error evaluating precision: {str(e)}")
     
-    def evaluate_with_annotations(self, text_extractor: TextExtractorPort) -> Optional[Dict[str, Any]]:
-        """Evaluate quality using extractor annotations if available."""
-        try:
-            quality_annotation = text_extractor.get_quality_annotation()
-            if not quality_annotation:
-                return None
-            
-            # Handle both Pydantic models and dict annotations
-            if hasattr(quality_annotation, 'model_dump'):
-                annotation_dict = quality_annotation.model_dump()
-            else:
-                annotation_dict = quality_annotation
-            
-            # Safely extract values with fallbacks
-            obfuscation_analysis = annotation_dict.get("obfuscation_analysis", {})
-            quality_metrics = annotation_dict.get("quality_metrics", {})
-            
-            precision_score = obfuscation_analysis.get("precision_score", 0.0)
-            missing_words_count = obfuscation_analysis.get("missing_words_count", 0)
-            preserved_words_count = obfuscation_analysis.get("preserved_words_count", 0)
-            total_words = quality_metrics.get("total_words", 0)
-            
-            return {
-                "score": precision_score,
-                "total_disappeared_terms": missing_words_count,
-                "false_positive_count": 0,  # Not provided by annotations
-                "total_original_words": total_words,
-                "words_found": preserved_words_count,
-                "details": {
-                    "total_original_words": total_words,
-                    "original_word_count": total_words,
-                    "obfuscated_word_count": total_words - missing_words_count,
-                    "words_found": preserved_words_count,
-                    "false_positives": [],
-                    "intentionally_obfuscated_count": 0,
-                    "extractor_annotation": annotation_dict,
-                    "mistral_processing_mode": annotation_dict.get("processing_mode", "unknown")
-                }
-            }
-            
-        except Exception as e:
-            # Fallback to manual evaluation if annotations fail
-            return None    
+    
 
     
     def evaluate_visual_integrity(
