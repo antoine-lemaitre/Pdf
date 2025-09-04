@@ -38,21 +38,22 @@ Examples:
     )
     
     parser.add_argument(
-        "--terms", "-t",
-        nargs="+",
-        help="Terms to obfuscate in the document"
-    )
-    
-    parser.add_argument(
-        "--output", "-o",
-        help="Output path for the obfuscated document (optional)"
-    )
-    
-    parser.add_argument(
         "--engine", "-e",
         default="pymupdf",
         choices=["pymupdf", "pypdfium2", "pdfplumber"],
         help="Obfuscation engine to use (default: pymupdf)"
+    )
+    
+    parser.add_argument(
+        "--engines",
+        action="store_true",
+        help="Show available engines"
+    )
+    
+    parser.add_argument(
+        "--evaluate-quality",
+        action="store_true",
+        help="Evaluate quality after obfuscation or evaluate quality of existing obfuscated document"
     )
     
     parser.add_argument(
@@ -63,28 +64,27 @@ Examples:
     )
     
     parser.add_argument(
-        "--evaluate-quality",
-        action="store_true",
-        help="Evaluate quality after obfuscation or evaluate quality of existing obfuscated document"
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)"
+    )
+    
+    parser.add_argument(
+        "--output", "-o",
+        help="Output path for the obfuscated document (optional)"
+    )
+    
+    parser.add_argument(
+        "--terms", "-t",
+        nargs="+",
+        help="Terms to obfuscate in the document"
     )
     
     parser.add_argument(
         "--validate",
         action="store_true",
         help="Only validate the document without obfuscating it"
-    )
-    
-    parser.add_argument(
-        "--engines",
-        action="store_true",
-        help="Show available engines"
-    )
-    
-    parser.add_argument(
-        "--format",
-        choices=["text", "json"],
-        default="text",
-        help="Output format (default: text)"
     )
     
     parser.add_argument(
