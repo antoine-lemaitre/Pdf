@@ -58,9 +58,8 @@ class DependencyContainer:
     def get_quality_evaluator(self, extractor_type: str = "tesseract") -> QualityEvaluatorPort:
         """Get or create quality evaluator with the specified text extractor."""
         if self._quality_evaluator is None or extractor_type != getattr(self._quality_evaluator, '_current_extractor_type', None):
-            from ..adapters.quality_evaluator import QualityEvaluator
             text_extractor = self.get_text_extractor(extractor_type)
-            self._quality_evaluator = QualityEvaluator(text_extractor)
+            self._quality_evaluator = QualityEvaluationService(text_extractor)
             setattr(self._quality_evaluator, '_current_extractor_type', extractor_type)
         return self._quality_evaluator
     
