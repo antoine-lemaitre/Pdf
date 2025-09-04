@@ -33,7 +33,12 @@ class PdfObfuscationApplication:
         self._dependency_container = dependency_container or DependencyContainer()
         self._default_engine = default_engine
         
-        # Use cases supprimés - logique intégrée directement dans les méthodes
+        # Initialize use cases
+        self._obfuscate_use_case = ObfuscateDocumentUseCase(
+            pdf_processor=self._dependency_container.get_pdf_processor(default_engine),
+            file_storage=self._dependency_container.get_file_storage(),
+            obfuscation_service=self._dependency_container.get_obfuscation_service()
+        )
     
 
     
