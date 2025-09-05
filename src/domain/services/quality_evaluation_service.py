@@ -57,11 +57,11 @@ class QualityEvaluationService:
         Returns:
             Overall score (0.0 to 1.0)
         """
-        # Business rule: Completeness is most important (40%), then precision (35%), then visual integrity (25%)
+        # Business rule: Completeness is most important (45%), then precision (45%), then visual integrity (10%)
         weights = {
-            'completeness': 0.4,
-            'precision': 0.35,
-            'visual_integrity': 0.25
+            'completeness': 0.45,
+            'precision': 0.45,
+            'visual_integrity': 0.10
         }
         
         overall_score = (
@@ -157,42 +157,53 @@ class QualityEvaluationService:
             missing_words = remaining_words_original
             
             # Filter out intentionally obfuscated terms from false positives
-            target_terms_lower = [term.lower() for term in terms_to_obfuscate]
+            target_terms_lower = [normalize_punctuation(term).lower() for term in terms_to_obfuscate]
+            
+            # Pre-calculate target terms data for efficiency
+            target_terms_data = []
+            for target_term in target_terms_lower:
+                target_terms_data.append({
+                    'term': target_term,
+                    'words': target_term.split() if ' ' in target_term else [target_term]
+                })
             
             # Filter missing words to keep only true false positives
             true_false_positives = []
+            targeted_terms_found = []
             for missing_word in missing_words:
                 # Check if this missing word was NOT in our target list
                 was_intentionally_obfuscated = any(
-                    target_term in missing_word or missing_word in target_term 
-                    for target_term in target_terms_lower
+                    self._is_word_obfuscation_target_optimized(missing_word, target_data)
+                    for target_data in target_terms_data
                 )
                 if not was_intentionally_obfuscated:
                     true_false_positives.append(missing_word)
+                else:
+                    targeted_terms_found.append(missing_word)
             
             # Calculate precision metrics
             total_original_words = len(original_words)
             words_found = total_original_words - len(missing_words)
             
             # Calculate precision score (ratio of words that were preserved)
-            precision_score = 0.0
+            precision_score = 1.0
             if total_original_words > 0:
-                precision_score = words_found / total_original_words
+                precision_score = round(1 - (len(true_false_positives) / total_original_words), 3)
             
             return {
-                "score": round(precision_score, 3),
+                "score": precision_score,
                 "total_disappeared_terms": len(missing_words),
                 "false_positive_count": len(true_false_positives),
                 "total_original_words": total_original_words,
-                "words_found": words_found,
                 "details": {
                     "total_original_words": total_original_words,
+                    "targeted_terms_found": targeted_terms_found,
                     "original_word_count": original_extraction.word_count,
                     "obfuscated_word_count": obfuscated_extraction.word_count,
                     "words_found": words_found,
                     "false_positives": true_false_positives,
                     "remaining_words_obfuscated": remaining_words_obfuscated,
-                    "intentionally_obfuscated_count": len(missing_words) - len(true_false_positives)
+                    "intentionally_obfuscated_count": len(targeted_terms_found)
                 }
             }
             
@@ -235,6 +246,45 @@ class QualityEvaluationService:
                 found_terms.append(term)
         
         return found_terms
+    
+    def _is_word_obfuscation_target_optimized(self, missing_word: str, target_data: dict) -> bool:
+        """
+        Check if a missing word was intentionally obfuscated based on pre-calculated target data.
+        
+        Handles three cases:
+        1. Exact match (word or string)
+        2. Multi-word string (missing word is part of the string)
+        3. Partial word match (missing word is substring of target)
+        
+        Args:
+            missing_word: The word that disappeared from obfuscated document
+            target_data: Pre-calculated data with 'term' and 'words' keys
+            
+        Returns:
+            True if the missing word was likely obfuscated as part of the target term
+        """
+        target_term = target_data['term']
+        target_words = target_data['words']
+        
+        # Normalize missing word to ensure consistent comparison
+        missing_word_normalized = normalize_punctuation(missing_word)
+        
+        # Cas 1: Correspondance exacte (mot entier ou chaîne complète)
+        if missing_word_normalized == target_term:
+            return True
+        
+        # Cas 2: Chaîne de caractères - vérifier si le mot fait partie de la chaîne
+        if len(target_words) > 1:  # C'est une chaîne multi-mots
+            # Normalize all target words for comparison
+            target_words_normalized = [normalize_punctuation(word) for word in target_words]
+            return missing_word_normalized in target_words_normalized
+        
+        # Cas 3: Partie d'un mot - vérifier si c'est une sous-chaîne significative
+        # Pour les emails, noms, etc. - le mot manquant peut être une partie du terme cible
+        if len(missing_word_normalized) >= 2 and missing_word_normalized in target_term:
+            return True
+        
+        return False
     
     def create_quality_report(
         self,
