@@ -37,6 +37,7 @@ class QualityReport:
     engine_used: str
     metrics: QualityMetrics
     timestamp: str
+    quality_annotation: Optional[Any] = None  # DocumentQualityAnnotation from text extractor
 
 
 @dataclass(frozen=True)

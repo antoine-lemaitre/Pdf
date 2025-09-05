@@ -307,6 +307,12 @@ class PdfObfuscationApplication:
             # Create quality report using the quality evaluation service
             from src.domain.services.quality_evaluation_service import QualityEvaluationService
             quality_service = QualityEvaluationService(quality_evaluator._text_extractor)
+            
+            # Get quality annotation from text extractor
+            quality_annotation = None
+            if hasattr(quality_evaluator._text_extractor, 'get_quality_annotation'):
+                quality_annotation = quality_evaluator._text_extractor.get_quality_annotation()
+            
             report = quality_service.create_quality_report(
                 original_document_path=original_document_path,
                 obfuscated_document_path=obfuscated_document_path,
@@ -315,7 +321,8 @@ class PdfObfuscationApplication:
                 completeness_score=completeness_result["score"],
                 precision_score=precision_result["score"],
                 visual_integrity_score=visual_integrity_result["score"],
-                details=all_details
+                details=all_details,
+                quality_annotation=quality_annotation
             )
             
             return report

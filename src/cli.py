@@ -170,11 +170,27 @@ Examples:
                 original_ocr_time = completeness_details.get('original_ocr_time', 'N/A')
                 obfuscated_ocr_time = completeness_details.get('obfuscated_ocr_time', 'N/A')
                 
+                # Get processing mode from quality annotation
+                processing_mode = 'unknown'
+                if hasattr(result, 'quality_annotation') and result.quality_annotation:
+                    if isinstance(result.quality_annotation, dict):
+                        processing_mode = result.quality_annotation.get('processing_mode', 'unknown')
+                    elif isinstance(result.quality_annotation, str):
+                        try:
+                            import json
+                            annotation_dict = json.loads(result.quality_annotation)
+                            processing_mode = annotation_dict.get('processing_mode', 'unknown')
+                        except json.JSONDecodeError:
+                            processing_mode = 'unknown'
+                    else:
+                        processing_mode = getattr(result.quality_annotation, 'processing_mode', 'unknown')
+                
                 output_data = {
                     "overall_score": result.metrics.overall_score,
                     "completeness_score": result.metrics.completeness_score,
                     "precision_score": result.metrics.precision_score,
                     "visual_integrity_score": result.metrics.visual_integrity_score,
+                    "processing_mode": processing_mode,
                     "timestamp": result.timestamp,
                     "details": result.metrics.details,
                     "ocr_execution_times": {
@@ -184,10 +200,26 @@ Examples:
                 }
                 print(json.dumps(output_data, indent=2))
             else:
+                # Get processing mode from quality annotation
+                processing_mode = 'unknown'
+                if hasattr(result, 'quality_annotation') and result.quality_annotation:
+                    if isinstance(result.quality_annotation, dict):
+                        processing_mode = result.quality_annotation.get('processing_mode', 'unknown')
+                    elif isinstance(result.quality_annotation, str):
+                        try:
+                            import json
+                            annotation_dict = json.loads(result.quality_annotation)
+                            processing_mode = annotation_dict.get('processing_mode', 'unknown')
+                        except json.JSONDecodeError:
+                            processing_mode = 'unknown'
+                    else:
+                        processing_mode = getattr(result.quality_annotation, 'processing_mode', 'unknown')
+                
                 print(f"Quality evaluation completed. Overall score: {result.metrics.overall_score}")
                 print(f"Completeness: {result.metrics.completeness_score}")
                 print(f"Precision: {result.metrics.precision_score}")
                 print(f"Visual Integrity: {result.metrics.visual_integrity_score}")
+                print(f"Processing mode: {processing_mode}")
                 
                 # Display details
                 if result.metrics.details:

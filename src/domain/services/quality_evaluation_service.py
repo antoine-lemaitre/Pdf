@@ -295,7 +295,8 @@ class QualityEvaluationService:
         completeness_score: float,
         precision_score: float,
         visual_integrity_score: float,
-        details: Dict[str, Any]
+        details: Dict[str, Any],
+        quality_annotation: Optional[Any] = None
     ) -> "QualityReport":
         """
         Create a complete quality report.
@@ -346,5 +347,6 @@ class QualityEvaluationService:
             terms_to_obfuscate=terms_to_obfuscate,
             engine_used=engine_used,
             metrics=metrics,
-            timestamp=datetime.now().isoformat()
+            timestamp=datetime.now().isoformat(),
+            quality_annotation=quality_annotation
         )
