@@ -296,19 +296,23 @@ class QualityEvaluationService:
         # Normalize missing word to ensure consistent comparison
         missing_word_normalized = normalize_punctuation(missing_word)
         
+        # Remove punctuation for comparison (like colons, periods, etc.)
+        missing_word_clean = re.sub(r'[^\w\s]', '', missing_word_normalized)
+        target_term_clean = re.sub(r'[^\w\s]', '', target_term)
+        
         # Cas 1: Correspondance exacte (mot entier ou chaîne complète)
-        if missing_word_normalized == target_term:
+        if missing_word_clean == target_term_clean:
             return True
         
         # Cas 2: Chaîne de caractères - vérifier si le mot fait partie de la chaîne
         if len(target_words) > 1:  # C'est une chaîne multi-mots
-            # Normalize all target words for comparison
-            target_words_normalized = [normalize_punctuation(word) for word in target_words]
-            return missing_word_normalized in target_words_normalized
+            # Normalize all target words for comparison and remove punctuation
+            target_words_normalized = [re.sub(r'[^\w\s]', '', normalize_punctuation(word)) for word in target_words]
+            return missing_word_clean in target_words_normalized
         
         # Cas 3: Partie d'un mot - vérifier si c'est une sous-chaîne significative
         # Pour les emails, noms, etc. - le mot manquant peut être une partie du terme cible
-        if len(missing_word_normalized) >= 2 and missing_word_normalized in target_term:
+        if len(missing_word_clean) >= 2 and missing_word_clean in target_term_clean:
             return True
         
         return False
