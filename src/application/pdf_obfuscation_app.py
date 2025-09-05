@@ -282,19 +282,26 @@ class PdfObfuscationApplication:
             original_document = Document(path=original_document_path)
             obfuscated_document = Document(path=obfuscated_document_path)
             
+            # Extract text once and reuse for all evaluations
+            original_extraction = quality_evaluator._text_extractor.extract_text(original_document)
+            obfuscated_extraction = quality_evaluator._text_extractor.extract_text(obfuscated_document)
+            
             # Evaluate completeness
             completeness_result = quality_evaluator.evaluate_completeness(
-                original_document, obfuscated_document, terms_to_obfuscate
+                original_document, obfuscated_document, terms_to_obfuscate,
+                original_extraction, obfuscated_extraction
             )
             
             # Evaluate precision
             precision_result = quality_evaluator.evaluate_precision(
-                original_document, obfuscated_document, terms_to_obfuscate
+                original_document, obfuscated_document, terms_to_obfuscate,
+                original_extraction, obfuscated_extraction
             )
             
             # Evaluate visual integrity
             visual_integrity_result = quality_evaluator.evaluate_visual_integrity(
-                original_document, obfuscated_document
+                original_document, obfuscated_document,
+                original_extraction, obfuscated_extraction
             )
             
             # Combine all details

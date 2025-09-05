@@ -177,7 +177,6 @@ Examples:
                         processing_mode = result.quality_annotation.get('processing_mode', 'unknown')
                     elif isinstance(result.quality_annotation, str):
                         try:
-                            import json
                             annotation_dict = json.loads(result.quality_annotation)
                             processing_mode = annotation_dict.get('processing_mode', 'unknown')
                         except json.JSONDecodeError:
@@ -207,7 +206,6 @@ Examples:
                         processing_mode = result.quality_annotation.get('processing_mode', 'unknown')
                     elif isinstance(result.quality_annotation, str):
                         try:
-                            import json
                             annotation_dict = json.loads(result.quality_annotation)
                             processing_mode = annotation_dict.get('processing_mode', 'unknown')
                         except json.JSONDecodeError:

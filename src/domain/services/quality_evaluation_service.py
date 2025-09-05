@@ -11,7 +11,7 @@ from ..quality_annotation_schema import DocumentQualityAnnotation
 
 
 def normalize_punctuation(text: str) -> str:
-    """Normalize all types of apostrophes, quotes and accents to standard characters."""
+    """Normalize characters."""
     # Process each character individually
     result = []
     for char in text:
@@ -19,12 +19,19 @@ def normalize_punctuation(text: str) -> str:
         char = char.replace('\u2019', "'").replace('\u2018', "'").replace('`', "'").replace('´', "'").replace('\u2019', "'")
         char = char.replace('\u201c', '"').replace('\u201d', '"').replace('\u2018', "'").replace('\u2019', "'")
         
+        # Remove dollar signs that cause inconsistencies in Mistral API responses
+        char = char.replace('$', '')
+        
         # Apply accent normalization
         normalized = unicodedata.normalize('NFD', char)
         normalized = ''.join(c for c in normalized if unicodedata.category(c) != 'Mn')
         result.append(normalized)
 
-    return ''.join(result)
+    # Normalize spaces around forward slashes to handle Mistral API inconsistencies
+    normalized_text = ''.join(result)
+    normalized_text = re.sub(r'\s*/\s*', '/', normalized_text)
+    
+    return normalized_text
 
 
 
@@ -76,13 +83,17 @@ class QualityEvaluationService:
         self, 
         original_document: Document, 
         obfuscated_document: Document, 
-        terms_to_obfuscate: List[str]
+        terms_to_obfuscate: List[str],
+        original_extraction: Optional[TextExtractionResult] = None,
+        obfuscated_extraction: Optional[TextExtractionResult] = None
     ) -> Dict[str, Any]:
         """Evaluate if all target terms were properly obfuscated."""
         try:
-            # Extract text from both documents
-            original_extraction = self._text_extractor.extract_text(original_document)
-            obfuscated_extraction = self._text_extractor.extract_text(obfuscated_document)
+            # Extract text from both documents if not provided
+            if original_extraction is None:
+                original_extraction = self._text_extractor.extract_text(original_document)
+            if obfuscated_extraction is None:
+                obfuscated_extraction = self._text_extractor.extract_text(obfuscated_document)
             
             # Find terms in original document
             original_terms = self._find_terms_in_text(original_extraction.text, terms_to_obfuscate)
@@ -117,7 +128,9 @@ class QualityEvaluationService:
         self, 
         original_document: Document, 
         obfuscated_document: Document, 
-        terms_to_obfuscate: List[str]
+        terms_to_obfuscate: List[str],
+        original_extraction: Optional[TextExtractionResult] = None,
+        obfuscated_extraction: Optional[TextExtractionResult] = None
     ) -> Dict[str, Any]:
         """
         Evaluate if only target terms were obfuscated (no false positives).
@@ -125,19 +138,25 @@ class QualityEvaluationService:
         Strategy: Compare word counts and analyze what disappeared.
         """
         try:
-            # Extract text from both documents
-            original_extraction = self._text_extractor.extract_text(original_document)
-            obfuscated_extraction = self._text_extractor.extract_text(obfuscated_document)
+            # Extract text from both documents if not provided
+            if original_extraction is None:
+                original_extraction = self._text_extractor.extract_text(original_document)
+            if obfuscated_extraction is None:
+                obfuscated_extraction = self._text_extractor.extract_text(obfuscated_document)
             original_text = original_extraction.text
             obfuscated_text = obfuscated_extraction.text
             
-            # Split texts into words and clean punctuation
-            original_words_raw = original_text.lower().split()
-            obfuscated_words_raw = obfuscated_text.lower().split()
+            # Normalize texts first, then split into words
+            original_text_normalized = normalize_punctuation(original_text.lower())
+            obfuscated_text_normalized = normalize_punctuation(obfuscated_text.lower())
             
-            # Clean and normalize words
-            original_words = [normalize_punctuation(re.sub(r'^[^\w]+|[^\w]+$', '', word)) for word in original_words_raw if re.sub(r'^[^\w]+|[^\w]+$', '', word)]
-            obfuscated_words = [normalize_punctuation(re.sub(r'^[^\w]+|[^\w]+$', '', word)) for word in obfuscated_words_raw if re.sub(r'^[^\w]+|[^\w]+$', '', word)]
+            # Split normalized texts into words
+            original_words_raw = original_text_normalized.split()
+            obfuscated_words_raw = obfuscated_text_normalized.split()
+            
+            # Clean words (remove non-alphanumeric characters from edges)
+            original_words = [re.sub(r'^[^\w]+|[^\w]+$', '', word) for word in original_words_raw if re.sub(r'^[^\w]+|[^\w]+$', '', word)]
+            obfuscated_words = [re.sub(r'^[^\w]+|[^\w]+$', '', word) for word in obfuscated_words_raw if re.sub(r'^[^\w]+|[^\w]+$', '', word)]
             
             # Sort both lists alphabetically to handle OCR differences
             original_words.sort()
@@ -216,10 +235,18 @@ class QualityEvaluationService:
     def evaluate_visual_integrity(
         self, 
         original_document: Document, 
-        obfuscated_document: Document
+        obfuscated_document: Document,
+        original_extraction: Optional[TextExtractionResult] = None,
+        obfuscated_extraction: Optional[TextExtractionResult] = None
     ) -> Dict[str, Any]:
         """Evaluate visual integrity by comparing document properties."""
         try:
+            # Extract text from both documents if not provided
+            if original_extraction is None:
+                original_extraction = self._text_extractor.extract_text(original_document)
+            if obfuscated_extraction is None:
+                obfuscated_extraction = self._text_extractor.extract_text(obfuscated_document)
+            
             # For now, we'll use a simple approach
             # In a real implementation, you might want to compare page dimensions, etc.
             return {
