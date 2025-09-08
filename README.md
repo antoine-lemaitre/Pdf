@@ -10,25 +10,24 @@ This project follows a **hexagonal architecture (ports and adapters)** to clearl
 src/
 ├── domain/               # Business core - Pure logic without dependencies
 │   ├── entities.py      # Business entities (Document, Term, ObfuscationResult...)
-│   ├── services.py      # Pure business services 
+│   ├── services/        # Business services
 │   └── exceptions.py    # Business exceptions
 ├── ports/               # Interfaces - Contracts between domain and adapters
 │   ├── pdf_processor_port.py    # Interface for PDF processing
 │   ├── file_storage_port.py     # Interface for file storage
 │   └── quality_evaluator_port.py # Interface for quality evaluation
-├── use_cases/           # Orchestration - Business use cases
-│   ├── obfuscate_document.py
-│   └── evaluate_obfuscation_quality.py
 ├── adapters/            # Implementations - Technical details
 │   ├── pymupdf_adapter.py       # PyMuPDF implementation
 │   ├── pypdfium2_adapter.py     # PyPDFium2 implementation
 │   ├── pdfplumber_adapter.py    # pdfplumber implementation
-│   ├── independent_quality_evaluator.py # Quality evaluation (no bias)
+│   ├── tesseract_text_extractor.py # Tesseract OCR implementation
+│   ├── mistral_text_extractor.py # Mistral AI OCR implementation
 │   ├── local_storage_adapter.py # Local storage
 │   ├── s3_storage_adapter.py    # S3 storage
 │   └── fastapi_adapter.py       # REST web interface
 ├── application/         # Coordination - Application entry point
-│   └── pdf_obfuscation_app.py
+│   ├── pdf_obfuscation_app.py
+│   └── pdf_processor_factory.py
 └── cli.py              # Command line interface
 ```
 
@@ -68,24 +67,6 @@ uv sync
 uv sync --extra dev
 ```
 
-### Key Dependencies
-
-The project uses several important libraries:
-
-- **PDF Processing Engines:**
-  - `pymupdf` - Fast PDF manipulation with rectangle overlays
-  - `pypdfium2` - High-quality PDF processing with Apache 2.0 license
-  - `pdfplumber` - Precise text extraction with Pillow obfuscation
-
-- **Quality Evaluation:**
-  - `pdf2image` - PDF to image conversion
-  - `pytesseract` - OCR for text extraction (requires Tesseract system dependency)
-  - `Pillow` - Image processing for obfuscation
-
-- **API & CLI:**
-  - `fastapi` - REST API framework
-  - `uvicorn` - ASGI server
-  - `pydantic` - Data validation
 
 ## 📋 Usage
 
@@ -188,28 +169,10 @@ Currently supported:
 
 ### Quality Evaluation
 
-The quality evaluation system provides three main metrics:
-
-#### 1. Completeness Score
-Measures whether all target terms were properly obfuscated.
-- **Method**: Compares text extraction from original vs obfuscated documents using PyPDF2 (no bias)
-- **Score**: 0.0 to 1.0 (higher is better)
-
-#### 2. Precision Score
-Measures whether only target terms were obfuscated (no false positives).
-- **Method**: Checks if non-target text was accidentally obfuscated
-- **Score**: 0.0 to 1.0 (higher is better)
-
-#### 3. Visual Integrity Score
-Measures whether the visual appearance and layout are preserved.
-- **Method**: Compares page dimensions and structure using pdf2image
-- **Score**: 0.0 to 1.0 (higher is better)
-
-#### Overall Score
-Weighted combination of the three metrics:
-- Completeness: 40%
-- Precision: 35%
-- Visual Integrity: 25%
+The system provides three metrics (0.0 to 1.0 scale):
+- **Completeness**: All target terms properly obfuscated (40% weight)
+- **Precision**: Only target terms obfuscated, no false positives (35% weight)  
+- **Visual Integrity**: Layout and appearance preserved (25% weight)
 
 ### Storage
 
@@ -301,25 +264,16 @@ class NewStorageAdapter(FileStoragePort):
         pass
 ```
 
-### Adding quality evaluation
-
-The quality evaluation system is designed to avoid bias by using different libraries than the obfuscation engines:
-
-- **IndependentQualityEvaluator**: Uses Tesseract OCR with pdf2image instead of pymupdf/pdfplumber
-- **MistralQualityEvaluator**: Uses Mistral AI OCR for enhanced accuracy
-- **QualityEvaluationService**: Contains business rules for quality assessment
-- **EvaluateObfuscationQualityUseCase**: Orchestrates the evaluation process
-
-#### Using Mistral AI OCR
+### Using Mistral AI OCR
 
 For enhanced OCR accuracy, you can use the Mistral AI OCR evaluator:
 
 ```python
-from src.adapters.mistral_quality_evaluator import MistralQualityEvaluator
+from src.adapters.mistral_text_extractor import MistralTextExtractor
 from src.application.pdf_obfuscation_app import PdfObfuscationApplication
 
 # Create Mistral evaluator
-mistral_evaluator = MistralQualityEvaluator(
+mistral_evaluator = MistralTextExtractor(
     file_storage=file_storage,
     mistral_api_key="your-api-key"  # or use MISTRAL_API_KEY env var
 )
@@ -334,9 +288,4 @@ app = PdfObfuscationApplication(
 ```bash
 export MISTRAL_API_KEY="your-api-key"
 ./test_mistral_ocr.sh
-```
-
-**Comparison with Tesseract:**
-```bash
-./test_mistral_ocr.sh --debug
 ```
